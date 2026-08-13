@@ -1,0 +1,9 @@
+Pin 1 - 8 times  Done
+Pin 2 - 8 times	 Done
+Pin 3 - 5 times  Printing
+Pin 4 - 1 times  Printing
+Pin 5 - 3 times  Printing
+Pin 6 - 8 times  Printing
+Pin 7 - 4 times  Printing
+Pin 8 - 3 times  Printing
+Pin 9 - 5 times  Printing
