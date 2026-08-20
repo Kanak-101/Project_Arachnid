@@ -1,0 +1,15 @@
+GAS SENSORS
+MQ2, - LPG, propane, hydrogen, smoke
+4, - Methane, Natural gas
+5, - LPG, propane
+6, - LPG, Butane (more accurate lpg sensor)
+7, - Carbon monoxide sensor
+8  - hydrogen sensor
+
+to use 4,7,2
+
+
+LiDAR - Light detection and Ranging ---> Pulsed laser light to measure distances and create precise, 3D representation of everything
+MPU6050 - Gyroscope
+DHT11 - Temperature and humidity sensor
+GPIOS - General purpose input output
