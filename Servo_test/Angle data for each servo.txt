@@ -1,0 +1,3 @@
+Servo 3 (leg end motor) -> 0-135
+servo 2 (center) -> 0-50
+Servo 1 (Leg frame) -> 
