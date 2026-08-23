@@ -45,15 +45,15 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 // ---------------- BUTTONS (ESP32-safe GPIOs) ----------------
 // Avoided: strapping pins (0, 2, 5, 12, 15), input-only pins (34-39,
 // which can't drive LEDs), and the flash-SPI pins (6-11).
-#define btn_up     22
+#define btn_up     32
 #define btn_down   15
 #define btn_left   4
-#define btn_right  2
+#define btn_right  25
 #define btn_ok     33
 
 // ---------------- LEDs (ESP32-safe GPIOs) ----------------
-#define red_led    16
-#define green_led  17
+#define red_led    17
+#define green_led  16
 
 // ---------------- DATA STRUCTURES ----------------
 struct MyServo {
@@ -129,7 +129,7 @@ void setup() {
         while (1) delay(100); // Halt if display fails
     }
 
-    digitalWrite(green_led, HIGH);
+    analogWrite(green_led, 127);
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_6x10_tf); // Clean, readable 10px high font
     u8g2.setCursor(10, 20);
