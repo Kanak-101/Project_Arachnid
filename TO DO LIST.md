@@ -16,6 +16,8 @@
 
 7\. Redesign head
 
+8\. improve dashboard UI
+
 
 
 ### SOFTWARE
