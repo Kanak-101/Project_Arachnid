@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-arachnid-ai-interaction"
+version = "0.2.0"
+description = "Laptop-side perception and interaction layer for Project Arachnid"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "opencv-python>=4.9",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+vision = ["ultralytics>=8.3", "mediapipe>=0.10.20"]
+hardware = ["pyserial>=3.5", "rplidar-roboticia>=0.9.5"]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
