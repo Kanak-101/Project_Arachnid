@@ -65,9 +65,11 @@ def print_i2c_report(found):
     print(f"Detected I2C addresses on /dev/i2c-1: {[hex(a) for a in found]}")
     left_ok = 0x40 in found
     right_ok = 0x50 in found
+    ads_ok = 0x48 in found
 
     print(f"  * Left Board  (0x40): {'[OK] Detected' if left_ok else '[FAIL] Missing!'}")
     print(f"  * Right Board (0x50): {'[OK] Detected' if right_ok else '[FAIL] Missing! (Verify A4 solder jumper)'}")
+    print(f"  * ADS1115 ADC (0x48): {'[OK] Detected (2S Battery monitor active)' if ads_ok else '[--] Not detected (Battery monitor optional)'}")
 
     if not left_ok or not right_ok:
         print("\n[!] WARNING: Both boards must be detected for normal operation.")

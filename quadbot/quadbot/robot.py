@@ -11,6 +11,7 @@ import time
 from dataclasses import asdict
 
 from . import avoid as avoidmod
+from .battery import make_battery_reader
 from .config import save as save_cfg
 from .gait import GaitEngine, GAITS
 from .kinematics import LegKinematics
@@ -21,10 +22,11 @@ CAL_FIELDS = ("channel", "board", "us_per_deg", "max_speed_dps", "deg_min", "deg
 
 
 class Robot:
-    def __init__(self, cfg, cfg_path, driver, lidar, clock=time.monotonic):
+    def __init__(self, cfg, cfg_path, driver, lidar, clock=time.monotonic, battery=None):
         self.clock = clock                  # injectable so tests can fast-forward the watchdog
         self.cfg, self.cfg_path = cfg, cfg_path
         self.driver, self.lidar = driver, lidar
+        self.battery = battery if battery is not None else make_battery_reader(cfg)
         has_dual = "boards" in cfg.get("pca9685", {})
         for s in cfg.get("servos", []):
             if "board" not in s and has_dual:
@@ -444,4 +446,5 @@ class Robot:
             "cmd": [round(c, 2) for c in self.cmd],
             "tick_ms": round(self.tick_ms, 2),
             "leg_targets": {k: [round(v, 1) for v in t] for k, t in self.leg_targets.items()},
+            "battery": self.battery.read() if self.battery else None,
         }

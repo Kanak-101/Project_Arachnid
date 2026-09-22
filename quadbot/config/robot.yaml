@@ -24,6 +24,17 @@ lidar:
   mount_offset_deg: 0   # rotate so 0 deg = robot forward (check with your hand)
   mask_deg: []          # [[start, end], ...] arcs to ignore (cables, legs, gimbal)
 
+battery:
+  enabled: true
+  driver: ads1115       # ads1115 | mock
+  bus: 1                # /dev/i2c-1 on the Pi 5
+  address: 0x48         # ADS1115 default address (ADDR -> GND)
+  channel: 0            # AIN0 (voltage sensor module)
+  divider_ratio: 5.0    # 5:1 resistor divider module
+  v_min: 6.6            # 2S LiPo cutoff (0%)
+  v_max: 8.4            # 2S LiPo full charge (100%)
+  v_warn: 7.0           # Low battery warning threshold
+
 control:
   rate_hz: 50
   command_timeout_s: 0.4   # no fresh drive command for this long -> robot stops

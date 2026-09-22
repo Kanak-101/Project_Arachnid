@@ -170,4 +170,13 @@ input[type=number] { width: 84px; min-height: 36px; padding: 0 6px; border: 1.5p
 .single-servo-select label { font-size: 0.85rem; color: var(--ink2); display: flex; align-items: center; gap: 6px; }
 .single-servo-select select { min-height: 36px; padding: 4px 8px; border: 1.5px solid var(--line); border-radius: 6px; background: #fff; font-family: inherit; font-size: 0.85rem; }
 
+/* ---------- battery badge ---------- */
+.battery-badge { display: inline-flex; align-items: center; gap: 4px; background: #2c3e50; color: #ecf0f1; border-color: #7f8c8d; font-variant-numeric: tabular-nums; padding: 3px 8px; border-radius: 6px; }
+.battery-badge .bat-icon { font-size: 0.92rem; }
+.battery-badge .bat-volt { font-size: 0.78rem; opacity: 0.88; margin-left: 2px; }
+.battery-badge.bat-ok { background: #1b7340; color: #fff; border-color: #4fd18b; }
+.battery-badge.bat-warn { background: #b8860b; color: #fff; border-color: #ffd700; font-weight: 700; }
+.battery-badge.bat-crit { background: #a81d1d; color: #fff; border-color: #ff6b6b; font-weight: 700; animation: batPulse 1.2s infinite; }
+@keyframes batPulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
 

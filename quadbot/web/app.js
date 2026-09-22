@@ -123,6 +123,21 @@ function onState(m) {
   const mock = m.lidar === 'mock';
   $('#mockRow').hidden = !mock;
   $('#lidStatus').textContent = m.lidar;
+
+  if (m.battery && m.battery.present) {
+    const b = m.battery;
+    const bBadge = $('#batteryBadge');
+    if (bBadge) {
+      bBadge.hidden = false;
+      $('#batPct').textContent = `${Math.round(b.percent)}%`;
+      $('#batVolt').textContent = `${b.voltage.toFixed(1)}V`;
+      bBadge.classList.toggle('bat-ok', b.state === 'ok');
+      bBadge.classList.toggle('bat-warn', b.state === 'low');
+      bBadge.classList.toggle('bat-crit', b.state === 'critical');
+      bBadge.title = `2S LiPo: ${b.voltage.toFixed(2)}V (${Math.round(b.percent)}%) - ${b.state}`;
+    }
+  }
+
   if (tab === 'calib') drawChassis();
 }
 
@@ -518,6 +533,8 @@ $$('.dpad-btn').forEach((btn) => {
   btn.addEventListener('pointerup', onEnd);
   btn.addEventListener('pointerleave', onEnd);
   btn.addEventListener('pointercancel', onEnd);
+});
+
 // Scope selector listeners (individual leg, board, or servo isolation)
 $$('#scopeSeg button').forEach((b) => {
   b.addEventListener('click', () => {

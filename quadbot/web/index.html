@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>quadbot bench console</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -17,6 +17,11 @@
     <b>quadbot</b>
     <span id="modeChip" class="chip">calib</span>
     <span id="servoBadge" class="chip servo-badge" title="Active servos">0/12 servos</span>
+    <span id="batteryBadge" class="chip battery-badge" title="2S Battery Level">
+      <span class="bat-icon">🔋</span>
+      <span id="batPct">--%</span>
+      <span id="batVolt" class="bat-volt">--V</span>
+    </span>
   </div>
   <div class="safety">
     <button id="enableAllNav" class="btn-enable-all" title="Enable all 12 servos">⚡ Enable All</button>
@@ -233,6 +238,6 @@
 </section>
 
 </main>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

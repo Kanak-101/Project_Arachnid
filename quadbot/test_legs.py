@@ -409,6 +409,29 @@ def test_all_legs_sequentially():
         time.sleep(1.5)
     print("\n[DONE] All 4 legs tested sequentially!")
 
+def read_battery(bus, addr=0x48, channel=0, divider_ratio=5.0):
+    """Reads 2S battery voltage via ADS1115 on AIN0 with 5:1 divider."""
+    try:
+        mux = 0b100 + channel
+        cfg_msb = 0x80 | (mux << 4) | (0b001 << 1) | 1  # 0xC3 for ch 0
+        cfg_lsb = (0b100 << 5) | 0x03
+        bus.write_i2c_block_data(addr, 0x01, [cfg_msb, cfg_lsb])
+        time.sleep(0.012)
+        data = bus.read_i2c_block_data(addr, 0x00, 2)
+        raw = (data[0] << 8) | data[1]
+        if raw > 32767:
+            raw -= 65536
+        pin_v = max(0.0, raw * (4.096 / 32768.0))
+        bat_v = pin_v * divider_ratio
+        if bat_v < 1.0:
+            return None
+        pct = max(0.0, min(100.0, (bat_v - 6.6) / (8.4 - 6.6) * 100.0))
+        status = "OK" if bat_v > 7.1 else "LOW WARNING" if bat_v > 6.6 else "CRITICAL (<6.6V)"
+        return bat_v, pct, status
+    except Exception:
+        return None
+
+
 # ==============================================================================
 # INTERACTIVE TERMINAL MENU
 # ==============================================================================
@@ -416,8 +439,15 @@ def test_all_legs_sequentially():
 def interactive_menu():
     drv = get_driver()
     while True:
+        bat_str = "N/A"
+        if drv.is_real and drv.smbus:
+            b_info = read_battery(drv.smbus)
+            if b_info:
+                bat_str = f"{b_info[0]:.2f}V ({int(b_info[1])}%) [{b_info[2]}]"
+
         print("\n" + "=" * 60)
         print("     QUADBOT DIRECT LEG TESTER (Servo Calibration v2)")
+        print(f"     Battery: {bat_str}")
         print("=" * 60)
         print("  [1] Test Front-Left  Leg (FL) -> Walking Cycle (~0.9A)")
         print("  [2] Test Front-Right Leg (FR) -> Walking Cycle (~0.9A)")
@@ -428,12 +458,13 @@ def interactive_menu():
         print("  [6] Center Pose on a Leg (1500us Neutral)")
         print("  [7] Range Limit Sweep on a Leg (MIN -> MAX from Excel)")
         print("  [8] Test a Single Joint (Jog ±150us)")
+        print("  [b] Check Battery Status (ADS1115)")
         print("  [9] RELEASE ALL SERVOS (Cut Power)")
         print("  [0] Exit")
         print("=" * 60)
 
         try:
-            choice = input("Enter choice [0-9]: ").strip()
+            choice = input("Enter choice: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             break
 
@@ -463,12 +494,22 @@ def interactive_menu():
             print("Available joints:", ", ".join(SERVOS.keys()))
             jid = input("Enter joint name [FL_femur]: ").strip() or "FL_femur"
             test_single_joint(jid)
+        elif choice == "b":
+            if drv.is_real and drv.smbus:
+                b = read_battery(drv.smbus)
+                if b:
+                    print(f"\n[BATTERY] 2S Pack: {b[0]:.2f}V ({int(b[1])}%) - Status: {b[2]}")
+                else:
+                    print("\n[BATTERY] ADS1115 at 0x48 not responding or no battery connected.")
+            else:
+                print("\n[BATTERY] Simulation mode: 2S Pack ~8.12V (86%) - Status: OK")
+            input("Press Enter to continue...")
         elif choice == "9":
             drv.release_all()
         elif choice == "0":
             break
         else:
-            print("Invalid choice, please enter 0-9.")
+            print("Invalid choice, please enter 0-9 or b.")
 
     drv.release_all()
     print("Exiting leg tester. Bye!")
@@ -485,11 +526,23 @@ def main():
                         help="Mode for leg test: 'gait' (walking cycle), 'sweep' (min->max), 'center' (1500us)")
     parser.add_argument("--joint", help="Test a single joint (e.g. FL_femur, FR_coxa)")
     parser.add_argument("--all-seq", action="store_true", help="Test all 4 legs sequentially (one leg at a time)")
+    parser.add_argument("--battery", action="store_true", help="Read 2S battery voltage via ADS1115")
     parser.add_argument("--release", action="store_true", help="Release all servo channels immediately")
 
     args = parser.parse_args()
 
     drv = get_driver()
+
+    if args.battery:
+        if drv.is_real and drv.smbus:
+            b = read_battery(drv.smbus)
+            if b:
+                print(f"[BATTERY] 2S LiPo: {b[0]:.2f}V ({int(b[1])}%) - Status: {b[2]}")
+            else:
+                print("[BATTERY] ADS1115 at 0x48 not responding or no battery connected.")
+        else:
+            print("[BATTERY] Simulation mode: 2S LiPo ~8.12V (86%) - Status: OK")
+        return
 
     if args.release:
         drv.release_all()

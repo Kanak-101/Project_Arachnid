@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config as cfgmod
+from .battery import make_battery_reader
 from .hal import make_driver
 from .lidar import make_lidar
 from .robot import Robot
@@ -29,12 +30,13 @@ log = logging.getLogger("quadbot")
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(cfg_path=None, driver=None, lidar=None):
+def create_app(cfg_path=None, driver=None, lidar=None, battery=None):
     cfg_path = Path(cfg_path or ROOT / "config" / "robot.yaml")
     cfg = cfgmod.load(cfg_path)
     driver = driver or make_driver(cfg)
     lidar = lidar or make_lidar(cfg)
-    robot = Robot(cfg, cfg_path, driver, lidar)
+    battery = battery or make_battery_reader(cfg)
+    robot = Robot(cfg, cfg_path, driver, lidar, battery=battery)
     clients = set()
     rate = cfg["control"]["rate_hz"]
 
@@ -79,6 +81,8 @@ def create_app(cfg_path=None, driver=None, lidar=None):
         for t in tasks:
             t.cancel()
         lidar.stop()
+        if battery:
+            battery.close()
         robot.trigger_estop()
         driver.close()
 
