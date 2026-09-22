@@ -24,7 +24,9 @@ def test_pulse_to_ticks():
     bus.block.clear()
     d.set_pulse(3, 1500)                           # 1500 us of a 20 ms frame = 307 ticks
     addr, reg, data = bus.block[-1]
-    assert reg == 0x06 + 4 * 3 and data[2] + (data[3] << 8) == 307
+    on_tick = data[0] + (data[1] << 8)
+    off_tick = data[2] + (data[3] << 8)
+    assert reg == 0x06 + 4 * 3 and (off_tick - on_tick) % 4096 == 307
 
 
 def test_release_sets_full_off_bit():

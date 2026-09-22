@@ -69,6 +69,20 @@ function onState(m) {
   if (m.notice && m.notice !== noticeText) showNotice(m.notice, m.estop);
   noticeText = m.notice;
 
+  const numEn = m.num_enabled != null ? m.num_enabled : Object.values(m.live || {}).filter(x => x.en).length;
+  const totalS = m.total_servos || 12;
+  const sBadge = $('#servoBadge');
+  if (sBadge) {
+    sBadge.textContent = `${numEn}/${totalS} servos`;
+    sBadge.classList.toggle('live', numEn > 0);
+    sBadge.classList.toggle('all-on', numEn === totalS);
+  }
+  const sCount = $('#servoCountDrive');
+  if (sCount) {
+    sCount.textContent = `${numEn} / ${totalS} active`;
+    sCount.classList.toggle('all-on', numEn === totalS);
+  }
+
   $('#chkDerate').checked = m.auto_derate;
   $('#derateBar').style.width = Math.round(m.gait_scale * 100) + '%';
   $('#derateVal').textContent = Math.round(m.gait_scale * 100) + '%';
@@ -181,6 +195,7 @@ function readPad() {
   return null;
 }
 
+let dpadCmd = null;
 const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 function driveTick() {
   const pad = readPad();
@@ -192,6 +207,12 @@ function driveTick() {
     vy += (keys.has('a') ? 1 : 0) - (keys.has('d') ? 1 : 0);
     wz += (keys.has('q') ? 1 : 0) - (keys.has('e') ? 1 : 0);
     if (vx || vy || wz) src = 'keyboard';
+  }
+  if (dpadCmd) {
+    vx += dpadCmd.vx;
+    vy += dpadCmd.vy;
+    wz += dpadCmd.wz;
+    src = 'dpad';
   }
   vx = clamp1(vx); vy = clamp1(vy); wz = clamp1(wz);
   send({ t: 'drive', vx, vy, wz });               // sent every tick: the robot stops if these stop arriving
@@ -419,4 +440,56 @@ $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
 // once an e-stop is latched the button becomes the reset control
 setInterval(() => { if (st) { $('#estop').textContent = st.estop ? 'Reset e-stop' : 'E-stop'; } }, 200);
 
+/* ------------------------------------------------------------------ quick debug & actions */
+const enableAllServos = () => send({ t: 'servo_enable_all', on: true });
+const releaseAllServos = () => send({ t: 'servo_enable_all', on: false });
+
+$('#enableAllNav')?.addEventListener('click', enableAllServos);
+$('#releaseAllNav')?.addEventListener('click', releaseAllServos);
+$('#btnEnableAllDrive')?.addEventListener('click', enableAllServos);
+$('#btnReleaseAllDrive')?.addEventListener('click', releaseAllServos);
+
+$('#btnQuickStand')?.addEventListener('click', () => send({ t: 'quick_test', action: 'stand' }));
+$('#btnQuickCrawl')?.addEventListener('click', () => send({ t: 'quick_test', action: 'crawl_fwd' }));
+$('#btnQuickBack')?.addEventListener('click', () => send({ t: 'quick_test', action: 'crawl_back' }));
+$('#btnQuickTurnL')?.addEventListener('click', () => send({ t: 'quick_test', action: 'turn_left' }));
+$('#btnQuickTurnR')?.addEventListener('click', () => send({ t: 'quick_test', action: 'turn_right' }));
+$('#btnQuickZero')?.addEventListener('click', () => send({ t: 'quick_test', action: 'zero_1500' }));
+$('#btnQuickStop')?.addEventListener('click', () => send({ t: 'quick_test', action: 'stop' }));
+
+// Direction pad interaction (works for touch/pointer hold & mouse click)
+$$('.dpad-btn').forEach((btn) => {
+  const act = btn.dataset.act;
+  const getCmd = (a) => {
+    switch (a) {
+      case 'fwd': return { vx: 0.65, vy: 0.0, wz: 0.0 };
+      case 'back': return { vx: -0.65, vy: 0.0, wz: 0.0 };
+      case 'left': return { vx: 0.0, vy: 0.65, wz: 0.0 };
+      case 'right': return { vx: 0.0, vy: -0.65, wz: 0.0 };
+      case 'turn_left': return { vx: 0.0, vy: 0.0, wz: 0.8 };
+      case 'turn_right': return { vx: 0.0, vy: 0.0, wz: -0.8 };
+      case 'stop': default: return null;
+    }
+  };
+  const onStart = (e) => {
+    e.preventDefault();
+    if (act === 'stop') {
+      dpadCmd = null;
+      send({ t: 'quick_test', action: 'stop' });
+      return;
+    }
+    dpadCmd = getCmd(act);
+    btn.classList.add('active');
+  };
+  const onEnd = () => {
+    dpadCmd = null;
+    btn.classList.remove('active');
+  };
+  btn.addEventListener('pointerdown', onStart);
+  btn.addEventListener('pointerup', onEnd);
+  btn.addEventListener('pointerleave', onEnd);
+  btn.addEventListener('pointercancel', onEnd);
+});
+
 connect();
+

@@ -13,8 +13,11 @@
     <span id="conn" class="dot" title="connection"></span>
     <b>quadbot</b>
     <span id="modeChip" class="chip">calib</span>
+    <span id="servoBadge" class="chip servo-badge" title="Active servos">0/12 servos</span>
   </div>
   <div class="safety">
+    <button id="enableAllNav" class="btn-enable-all" title="Enable all 12 servos">⚡ Enable All</button>
+    <button id="releaseAllNav" class="btn-release-all" title="Release all servos">Release All</button>
     <button id="arm" class="arm" aria-pressed="false">Arm servos</button>
     <button id="estop" class="estop">E-stop</button>
   </div>
@@ -33,19 +36,55 @@
 <!-- ============================ DRIVE ============================ -->
 <section id="tab-drive" class="tab">
   <div class="panel">
-    <h2>Mode</h2>
+    <div class="panel-header-row">
+      <h2>Mode & Motion Control</h2>
+      <div class="servo-ctrl-group">
+        <button id="btnEnableAllDrive" class="btn-quick-en">⚡ Enable All Servos</button>
+        <button id="btnReleaseAllDrive" class="btn-quick-rel">Release All</button>
+        <span id="servoCountDrive" class="badge">0 / 12 active</span>
+      </div>
+    </div>
     <div class="seg" id="modeSeg">
       <button data-mode="rest">Rest</button>
       <button data-mode="stand">Stand</button>
       <button data-mode="crawl">Crawl</button>
       <button data-mode="trot">Trot</button>
     </div>
-    <p class="hint">Enable servos on the Calibrate tab first. Gamepad: A stand, B rest, X crawl, Y trot, bumpers or Back = e-stop. Keyboard: W A S D move, Q E turn, Space = e-stop.</p>
+
+    <div class="quick-debug-box">
+      <div class="quick-debug-title">Quick Actions & Motion Debugging:</div>
+      <div class="quick-btn-row">
+        <button id="btnQuickStand" class="qbtn">🧍 Stand Pose</button>
+        <button id="btnQuickCrawl" class="qbtn">🚶 Walk Fwd</button>
+        <button id="btnQuickBack" class="qbtn">🔙 Walk Back</button>
+        <button id="btnQuickTurnL" class="qbtn">↺ Turn Left</button>
+        <button id="btnQuickTurnR" class="qbtn">↻ Turn Right</button>
+        <button id="btnQuickZero" class="qbtn">🎯 Zero (1500µs)</button>
+        <button id="btnQuickStop" class="qbtn stop">⏹ Stop</button>
+      </div>
+    </div>
+    <p class="hint">Arm servos first. Switching to Stand, Crawl, or Trot auto-enables all servos smoothly. Keyboard: W/A/S/D move, Q/E turn, Space = E-stop.</p>
   </div>
 
   <div class="panel sticks">
-    <div class="stick-wrap"><div class="stick" id="stickMove"><i></i></div><span>Move</span></div>
-    <div class="stick-wrap"><div class="stick" id="stickTurn"><i></i></div><span>Turn</span></div>
+    <div class="stick-wrap"><div class="stick" id="stickMove"><i></i></div><span>Move (X / Y)</span></div>
+    <div class="stick-wrap"><div class="stick" id="stickTurn"><i></i></div><span>Turn (Yaw)</span></div>
+    
+    <div class="dpad-wrap">
+      <span>Direction Pad</span>
+      <div class="dpad-grid">
+        <button class="dpad-btn" data-act="turn_left" title="Turn Left (Q)">↺</button>
+        <button class="dpad-btn" data-act="fwd" title="Forward (W)">▲</button>
+        <button class="dpad-btn" data-act="turn_right" title="Turn Right (E)">↻</button>
+        <button class="dpad-btn" data-act="left" title="Strafe Left (A)">◄</button>
+        <button class="dpad-btn stop" data-act="stop" title="Stop Motion">■</button>
+        <button class="dpad-btn" data-act="right" title="Strafe Right (D)">►</button>
+        <div></div>
+        <button class="dpad-btn" data-act="back" title="Backward (S)">▼</button>
+        <div></div>
+      </div>
+    </div>
+
     <div class="readout">
       <div><small>input</small><b id="inputSrc">none</b></div>
       <div><small>vx / vy / wz</small><b id="cmdOut">0.00 / 0.00 / 0.00</b></div>

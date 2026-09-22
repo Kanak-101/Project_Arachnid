@@ -58,6 +58,7 @@ class Robot:
         self.cal_version = 1
         self.notice = ""
         self.tick_ms = 0.0
+        self._i2c_errors = 0
 
     # ---------------------------------------------------------------- safety
     def arm(self, on):
@@ -67,6 +68,9 @@ class Robot:
         self.armed = bool(on)
         if not self.armed:
             self._release_all()
+        elif self.mode in ("stand", "crawl", "trot") and not self.enabled:
+            self.enable_servo("all", True)
+            self.notice = f"Armed and enabled all servos in {self.mode} mode"
 
     def trigger_estop(self):
         self.estop, self.armed, self.sweep = True, False, None
@@ -160,6 +164,9 @@ class Robot:
         self.sweep = None
         self.cmd = (0.0, 0.0, 0.0)
         self.mode = mode
+        if self.armed and mode in ("stand", "crawl", "trot") and not self.enabled:
+            self.enable_servo("all", True)
+            self.notice = f"Mode {mode}: all servos enabled"
 
     def set_params(self, msg):
         gp = self.gait.p
@@ -202,6 +209,10 @@ class Robot:
             self.set_mode(msg.get("mode"))
         elif t == "servo_enable":
             self.enable_servo(msg.get("id"), bool(msg.get("on")))
+        elif t == "servo_enable_all":
+            self.enable_servo("all", bool(msg.get("on", True)))
+        elif t == "quick_test":
+            self.quick_test(msg.get("action"))
         elif t == "servo_us":
             self.set_us(msg.get("id"), msg.get("us"))
         elif t == "servo_cal":
@@ -219,12 +230,61 @@ class Robot:
         elif t == "mock_obstacle" and hasattr(self.lidar, "set_obstacle"):
             self.lidar.set_obstacle(float(msg["dist_mm"]) if msg.get("on") else None)
 
+    def quick_test(self, action):
+        if not self.armed:
+            self.arm(True)
+        if action == "stand":
+            self.set_mode("stand")
+            self.enable_servo("all", True)
+            self.cmd = (0.0, 0.0, 0.0)
+            self.cmd_t = self.clock()
+            self.notice = "Quick test: Standing pose"
+        elif action == "crawl_fwd":
+            self.set_mode("crawl")
+            self.enable_servo("all", True)
+            self.cmd = (0.6, 0.0, 0.0)
+            self.cmd_t = self.clock()
+            self.notice = "Quick test: Walking forward (crawl)"
+        elif action == "crawl_back":
+            self.set_mode("crawl")
+            self.enable_servo("all", True)
+            self.cmd = (-0.6, 0.0, 0.0)
+            self.cmd_t = self.clock()
+            self.notice = "Quick test: Walking backward"
+        elif action == "turn_left":
+            self.set_mode("crawl")
+            self.enable_servo("all", True)
+            self.cmd = (0.0, 0.0, 0.8)
+            self.cmd_t = self.clock()
+            self.notice = "Quick test: Turning left (CCW)"
+        elif action == "turn_right":
+            self.set_mode("crawl")
+            self.enable_servo("all", True)
+            self.cmd = (0.0, 0.0, -0.8)
+            self.cmd_t = self.clock()
+            self.notice = "Quick test: Turning right (CW)"
+        elif action == "zero_1500":
+            self.set_mode("calib")
+            self.enable_servo("all", True)
+            for sid in self.servos:
+                self.manual_target[sid] = 1500.0
+            self.notice = "Quick test: Centered at 1500 µs"
+        elif action == "stop":
+            self.cmd = (0.0, 0.0, 0.0)
+            self.notice = "Quick test: Stopped"
+
     # ---------------------------------------------------------------- control tick
     def _write(self, sid, us):
         s = self.servos[sid]
         if self.out_us.get(sid) is None or abs(self.out_us[sid] - us) >= 0.5:
-            self.driver.set_pulse(s.channel, us, board=s.board)
-            self.out_us[sid] = us
+            try:
+                self.driver.set_pulse(s.channel, us, board=s.board)
+                self.out_us[sid] = us
+                self._i2c_errors = 0
+            except (OSError, IOError):
+                self._i2c_errors = getattr(self, "_i2c_errors", 0) + 1
+                if self._i2c_errors >= 8:
+                    raise
 
     def tick(self, dt):
         t0 = time.perf_counter()
@@ -318,6 +378,8 @@ class Robot:
             "armed": self.armed,
             "estop": self.estop,
             "mode": self.mode,
+            "num_enabled": len(self.enabled),
+            "total_servos": len(self.servos),
             "cal_version": self.cal_version,
             "notice": self.notice,
             "live": live,

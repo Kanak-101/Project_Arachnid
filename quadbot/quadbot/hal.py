@@ -41,27 +41,54 @@ class MockDriver(ServoDriver):
 
 class PCA9685Board:
     MODE1, PRESCALE, LED0 = 0x00, 0xFE, 0x06
+    ALL_LED_ON_L = 0xFA
 
-    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000):
-        self.bus, self.addr, self.freq = bus_obj, address, freq_hz
+    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000, stagger=True):
+        self.bus, self.addr, self.freq, self.stagger = bus_obj, address, freq_hz, stagger
         prescale = int(round(osc_hz / (4096 * freq_hz))) - 1
-        self.bus.write_byte_data(self.addr, self.MODE1, 0x10)      # sleep so we can set the prescaler
-        self.bus.write_byte_data(self.addr, self.PRESCALE, prescale)
-        self.bus.write_byte_data(self.addr, self.MODE1, 0x20)      # wake, auto-increment
+        self._write_byte(self.MODE1, 0x10)      # sleep so we can set the prescaler
+        self._write_byte(self.PRESCALE, prescale)
+        self._write_byte(self.MODE1, 0x20)      # wake, auto-increment
         time.sleep(0.005)
-        self.bus.write_byte_data(self.addr, self.MODE1, 0xA0)      # restart
+        self._write_byte(self.MODE1, 0xA0)      # restart
         self.release_all()
+
+    def _write_byte(self, reg, val):
+        for attempt in range(3):
+            try:
+                self.bus.write_byte_data(self.addr, reg, val)
+                return
+            except (OSError, IOError):
+                if attempt == 2:
+                    raise
+                time.sleep(0.002)
+
+    def _write_block(self, reg, data):
+        for attempt in range(3):
+            try:
+                self.bus.write_i2c_block_data(self.addr, reg, data)
+                return
+            except (OSError, IOError):
+                if attempt == 2:
+                    raise
+                time.sleep(0.002)
 
     def set_pulse(self, channel, us):
         ticks = int(round(us * 4096 * self.freq / 1e6))
         ticks = max(0, min(4095, ticks))
-        self.bus.write_i2c_block_data(
-            self.addr, self.LED0 + 4 * channel, [0, 0, ticks & 0xFF, ticks >> 8]
+        if self.stagger:
+            on_tick = (channel * 256) % 4096
+            off_tick = (on_tick + ticks) % 4096
+        else:
+            on_tick, off_tick = 0, ticks
+        self._write_block(
+            self.LED0 + 4 * channel,
+            [on_tick & 0xFF, on_tick >> 8, off_tick & 0xFF, off_tick >> 8]
         )
 
     def release(self, channel):
         # bit 4 of LEDn_OFF_H = "full off": the output stays low, so the servo is unpowered
-        self.bus.write_i2c_block_data(self.addr, self.LED0 + 4 * channel, [0, 0, 0, 0x10])
+        self._write_block(self.LED0 + 4 * channel, [0, 0, 0, 0x10])
 
     def release_all(self):
         for ch in range(16):
@@ -90,6 +117,7 @@ class PCA9685Driver(ServoDriver):
             b_addr = b_cfg.get("address", address)
             b_freq = b_cfg.get("freq_hz", freq_hz)
             b_osc = b_cfg.get("osc_hz", osc_hz)
+            b_stagger = b_cfg.get("stagger", True)
 
             if bus_obj is not None:
                 cur_bus = bus_obj.get(name, bus_obj) if isinstance(bus_obj, dict) else bus_obj
@@ -99,7 +127,7 @@ class PCA9685Driver(ServoDriver):
                     self._bus_cache[b_bus] = SMBus(b_bus)
                 cur_bus = self._bus_cache[b_bus]
 
-            self.boards[name] = PCA9685Board(cur_bus, b_addr, b_freq, b_osc)
+            self.boards[name] = PCA9685Board(cur_bus, b_addr, b_freq, b_osc, stagger=b_stagger)
 
     def _resolve_board(self, board):
         if board in self.boards:
@@ -133,7 +161,11 @@ class PCA9685Driver(ServoDriver):
 def make_driver(cfg):
     if cfg.get("driver", "mock") == "pca9685":
         p = cfg.get("pca9685", {})
+        stagger = p.get("stagger", True)
         if "boards" in p:
+            for b in p["boards"].values():
+                if "stagger" not in b:
+                    b["stagger"] = stagger
             return PCA9685Driver(boards=p["boards"])
         return PCA9685Driver(p.get("bus", 1), p.get("address", 0x40),
                              p.get("freq_hz", 50), p.get("osc_hz", 25_000_000))

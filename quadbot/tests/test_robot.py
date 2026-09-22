@@ -248,3 +248,33 @@ def test_jog_speed_never_exceeds_the_configured_ramp():
         worst = max(worst, abs(d.pulses[(s.board, s.channel)] - prev) / 0.02)
         prev = d.pulses[(s.board, s.channel)]
     assert worst <= r.jog_rate + 1e-6 and prev == 500
+
+
+def test_auto_enable_servos_in_walking_mode():
+    r, _ = make()
+    r.arm(True)
+    assert len(r.enabled) == 0
+    r.set_mode("stand")
+    assert len(r.enabled) == 12
+    st = r.state_message()
+    assert st["num_enabled"] == 12
+    assert st["total_servos"] == 12
+
+
+def test_quick_test_actions_and_servo_enable_all():
+    r, _ = make()
+    r.arm(True)
+    r.handle({"t": "servo_enable_all", "on": True})
+    assert len(r.enabled) == 12
+    r.handle({"t": "quick_test", "action": "crawl_fwd"})
+    assert r.mode == "crawl"
+    assert r.cmd[0] == 0.6
+    r.handle({"t": "quick_test", "action": "turn_left"})
+    assert r.mode == "crawl"
+    assert r.cmd[2] == 0.8
+    r.handle({"t": "quick_test", "action": "zero_1500"})
+    assert r.mode == "calib"
+    assert r.manual_target["FL_coxa"] == 1500.0
+    r.handle({"t": "servo_enable_all", "on": False})
+    assert len(r.enabled) == 0
+

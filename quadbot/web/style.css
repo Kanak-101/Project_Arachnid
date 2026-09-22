@@ -131,3 +131,34 @@ input[type=number] { width: 84px; min-height: 36px; padding: 0 6px; border: 1.5p
 
 /* ---------- radar ---------- */
 #radar { width: 100%; max-width: 560px; display: block; margin: 0 auto 8px; background: #0f1c24; border-radius: 12px; touch-action: manipulation; }
+
+/* ---------- new controls: safety bar & quick debug ---------- */
+.btn-enable-all { background: #276b8c; color: #fff; border-color: #4fd18b; font-weight: 600; }
+.btn-enable-all:hover { background: #1b4e68; }
+.btn-release-all { background: transparent; color: #cfe0e8; border-color: #6a7c85; }
+.btn-release-all:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.servo-badge.live { background: #276b8c; color: #fff; border-color: #4fd18b; }
+.servo-badge.all-on { background: #1b7340; color: #fff; border-color: #4fd18b; font-weight: 700; }
+
+.panel-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.servo-ctrl-group { display: flex; align-items: center; gap: 8px; }
+.btn-quick-en { background: var(--steel); color: #fff; font-weight: 600; min-height: 36px; padding: 0 10px; }
+.btn-quick-rel { min-height: 36px; padding: 0 10px; border-color: var(--line); }
+.badge { padding: 4px 8px; border-radius: 6px; font-size: 0.82rem; background: #dfe6e9; font-weight: 600; }
+.badge.all-on { background: #d4edda; color: #155724; }
+
+.quick-debug-box { margin: 12px 0 6px; padding: 10px 12px; background: #eef2f3; border: 1.5px solid var(--line); border-radius: 8px; }
+.quick-debug-title { font-size: 0.85rem; font-weight: 600; color: var(--ink2); margin-bottom: 8px; }
+.quick-btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.qbtn { flex: 1 1 auto; min-height: 36px; padding: 0 10px; font-size: 0.88rem; background: #fff; border: 1.5px solid var(--line); font-weight: 500; }
+.qbtn:hover { border-color: var(--steel); background: #f8fafa; }
+.qbtn.stop { background: #fff0f0; border-color: var(--stop); color: var(--stop); font-weight: 700; }
+
+/* ---------- D-pad ---------- */
+.dpad-wrap { display: grid; justify-items: center; gap: 6px; }
+.dpad-grid { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); gap: 6px; }
+.dpad-btn { min-height: unset; width: 48px; height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border-radius: 8px; border: 1.5px solid var(--ink); background: var(--panel); user-select: none; touch-action: none; }
+.dpad-btn:hover, .dpad-btn.active { background: var(--steel); color: #fff; border-color: var(--steel-d); }
+.dpad-btn.stop { color: var(--stop); font-size: 1.4rem; }
+.dpad-btn.stop:hover, .dpad-btn.stop.active { background: var(--stop); color: #fff; }
+

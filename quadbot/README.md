@@ -37,7 +37,23 @@ Not in this drop (next): click-to-go, person tracking, CPG.
      sudo usermod -aG i2c,dialout $USER
      ```
    - Log out and log back in (or run `newgrp i2c`) so the new group permissions apply.
-4. **Power:** Servos need their own 5 to 6 V supply (a BEC or battery pack) into the PCA9685 V+ terminals of **both** boards, with its ground joined to the Pi's ground (common ground). Never power servos from the Pi. Twelve servos can pull 10+ amps under load, so use a supply that can deliver it.
+3. **Power & Preventing Servo Jitter:**
+   - **Common Ground:** Tie the external servo power supply ground (`GND`) to the Raspberry Pi `GND` (Pin 6). A floating ground reference causes violent servo jitter/twitching.
+   - **Current Capacity:** 12 MG958 / MG996R / MG995 servos draw 10A–15A peak. If voltage drops below ~4.5V, servo microcontrollers reset continuously (chatter/buzzing). Use a dedicated 8A–15A 5V–6V battery/BEC.
+   - **Logic VCC:** Connect PCA9685 `VCC` to Pi 3.3V (Pin 1). Connect servo power (5V–6V) only to the `V+` screw terminals.
+4. **Hardware Diagnostic CLI Tool:**
+   Before launching the web server, run the built-in diagnostic tool to test each board, channel, and gait:
+   ```bash
+   python -m quadbot.diag
+   ```
+   Or run specific checks:
+   - `python -m quadbot.diag --scan` (Scans I2C bus for 0x40 and 0x50)
+   - `python -m quadbot.diag --test-servo FL_coxa` (Jogs ONE servo to check channel wiring)
+   - `python -m quadbot.diag --all-1500` (Smoothly centers all 12 servos sequentially)
+   - `python -m quadbot.diag --stand` (Tests Stand pose kinematics)
+   - `python -m quadbot.diag --crawl` (Tests 5-second crawling walk test directly in terminal)
+   - `python -m quadbot.diag --turn` (Tests 5-second in-place turning test)
+   - `python -m quadbot.diag --release` (Immediately releases all channels)
 5. `python -m quadbot.server --host 0.0.0.0`, then open `http://<pi-address>:8000`.
    To start on boot use `deploy/quadbot.service`.
 
