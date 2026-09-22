@@ -608,6 +608,7 @@ def interactive_menu():
         print("  [3] Test Rear-Left   Leg (RL) -> Walking Cycle (~0.9A)")
         print("  [4] Test Rear-Right  Leg (RR) -> Walking Cycle (~0.9A)")
         print("  [5] Test All 4 Legs Sequentially (One by One)")
+        print("  [w] STAND UP & WALK 2 LEGS (5s Trot Gait - Power Efficient)")
         print("  ----------------------------------------------------")
         print("  [6] Center Pose on a Leg (1500us Neutral)")
         print("  [7] Range Limit Sweep on a Leg (MIN -> MAX from Excel)")
@@ -634,6 +635,13 @@ def interactive_menu():
             test_leg_gait("RR")
         elif choice == "5":
             test_all_legs_sequentially()
+        elif choice == "w":
+            try:
+                from stand_and_walk import run_stand_and_walk
+                run_stand_and_walk(duration_s=5.0, hold_s=2.5, speed="slow")
+            except Exception as e:
+                print(f"[ERROR] Could not run stand and walk: {e}")
+            input("Press Enter to continue...")
         elif choice == "6":
             leg = input("Which leg (FL, FR, RL, RR)? [FL]: ").strip().upper() or "FL"
             if leg in LEGS:
@@ -707,6 +715,7 @@ def main():
     parser.add_argument("--speed", choices=["slow", "normal", "fast"], default="slow",
                         help="Speed preset (default: 'slow' for anti-jitter stability)")
     parser.add_argument("--all-seq", action="store_true", help="Test all 4 legs sequentially (one leg at a time)")
+    parser.add_argument("--trot-5s", action="store_true", help="Stand up, hold still, and walk 2 legs at a time for 5 seconds")
     parser.add_argument("--scan", action="store_true", help="Scan I2C bus and unlock PCA9685 boards")
     parser.add_argument("--battery", action="store_true", help="Read 2S battery voltage via ADS1115")
     parser.add_argument("--release", action="store_true", help="Release all servo channels immediately")
@@ -741,6 +750,11 @@ def main():
 
     if args.all_seq:
         test_all_legs_sequentially()
+        return
+
+    if args.trot_5s:
+        from stand_and_walk import run_stand_and_walk
+        run_stand_and_walk(duration_s=5.0, hold_s=2.5, speed=args.speed if args.speed in ["slow", "normal"] else "slow")
         return
 
     if args.leg:
