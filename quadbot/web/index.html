@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>quadbot bench console</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span id="conn" class="dot" title="connection"></span>
+    <b>quadbot</b>
+    <span id="modeChip" class="chip">calib</span>
+  </div>
+  <div class="safety">
+    <button id="arm" class="arm" aria-pressed="false">Arm servos</button>
+    <button id="estop" class="estop">E-stop</button>
+  </div>
+</header>
+<div id="notice" class="notice" role="status" hidden></div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="drive" aria-selected="true">Drive</button>
+  <button role="tab" data-tab="calib" aria-selected="false">Calibrate</button>
+  <button role="tab" data-tab="legs" aria-selected="false">Legs</button>
+  <button role="tab" data-tab="radar" aria-selected="false">Radar</button>
+</nav>
+
+<main>
+
+<!-- ============================ DRIVE ============================ -->
+<section id="tab-drive" class="tab">
+  <div class="panel">
+    <h2>Mode</h2>
+    <div class="seg" id="modeSeg">
+      <button data-mode="rest">Rest</button>
+      <button data-mode="stand">Stand</button>
+      <button data-mode="crawl">Crawl</button>
+      <button data-mode="trot">Trot</button>
+    </div>
+    <p class="hint">Enable servos on the Calibrate tab first. Gamepad: A stand, B rest, X crawl, Y trot, bumpers or Back = e-stop. Keyboard: W A S D move, Q E turn, Space = e-stop.</p>
+  </div>
+
+  <div class="panel sticks">
+    <div class="stick-wrap"><div class="stick" id="stickMove"><i></i></div><span>Move</span></div>
+    <div class="stick-wrap"><div class="stick" id="stickTurn"><i></i></div><span>Turn</span></div>
+    <div class="readout">
+      <div><small>input</small><b id="inputSrc">none</b></div>
+      <div><small>vx / vy / wz</small><b id="cmdOut">0.00 / 0.00 / 0.00</b></div>
+      <div><small>obstacle</small><b id="avoidChip" class="chip">off</b></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Gait tuning</h2>
+    <div class="grid2" id="gaitSliders"></div>
+    <label class="check"><input type="checkbox" id="chkAvoid"> Obstacle avoidance</label>
+    <label class="check"><input type="checkbox" id="chkDerate"> Auto-slow when a servo can't keep up</label>
+  </div>
+
+  <div class="panel">
+    <h2>What is holding the gait back</h2>
+    <div class="derate">
+      <span>Gait speed</span>
+      <div class="meter"><i id="derateBar"></i></div>
+      <b id="derateVal">100%</b>
+    </div>
+    <div id="satGrid" class="satgrid"></div>
+    <p class="hint">Each bar is how often that joint hit its speed or range limit. A tall bar on one leg usually means that servo needs a lower max speed, a wider range, or a re-calibration.</p>
+  </div>
+</section>
+
+<!-- ============================ CALIBRATE ============================ -->
+<section id="tab-calib" class="tab" hidden>
+  <div class="panel">
+    <h2>Calibration walk-through</h2>
+    <ol class="steps">
+      <li>Prop the robot so the legs hang free. Press <b>Arm servos</b>.</li>
+      <li>Pick a leg on the map. Enable one servo, then jog it slowly with the buttons.</li>
+      <li>Move the joint to the calibration pose (coxa straight out, femur level, tibia vertical) and press <b>Set centre</b>.</li>
+      <li>Jog toward each end of travel. Press <b>Set low</b> / <b>Set high</b> a little before the horn hits the frame.</li>
+      <li>Check the direction against the map. If the drawn leg moves the wrong way, press <b>Invert</b>.</li>
+      <li>Jog to an angle you can measure, type it in, press <b>Calibrate scale</b>. Then run <b>Sweep test</b>.</li>
+      <li>Press <b>Save config</b>.</li>
+    </ol>
+  </div>
+
+  <div class="calib-layout">
+    <div class="panel mapPanel">
+      <h2>Pose map</h2>
+      <canvas id="chassis" width="360" height="360"></canvas>
+      <div class="legend"><span class="dotm m958"></span>MG958 <span class="dotm m996"></span>MG996R <span class="dotm m995"></span>MG995</div>
+      <div class="seg" id="legSeg">
+        <button data-leg="FL">Front left</button>
+        <button data-leg="FR">Front right</button>
+        <button data-leg="RL">Rear left</button>
+        <button data-leg="RR">Rear right</button>
+      </div>
+      <div class="row">
+        <button id="enableLeg">Enable this leg</button>
+        <button id="disableAll">Release all</button>
+        <button id="saveCfg" class="primary">Save config</button>
+      </div>
+    </div>
+    <div id="cards" class="cards"></div>
+  </div>
+</section>
+
+<!-- ============================ LEGS ============================ -->
+<section id="tab-legs" class="tab" hidden>
+  <div class="panel">
+    <h2>Foot position test</h2>
+    <p class="hint">Places one foot at an x, y, z target (leg frame: x out from the body, y forward, z up) and shows the joint angles that needs. Use it to check the leg lengths and the inverted flags before any walking.</p>
+    <div class="row">
+      <button id="startLegTest" class="primary">Start leg test</button>
+      <span id="legTestState" class="chip">off</span>
+    </div>
+    <div class="seg" id="legSeg2">
+      <button data-leg="FL">Front left</button>
+      <button data-leg="FR">Front right</button>
+      <button data-leg="RL">Rear left</button>
+      <button data-leg="RR">Rear right</button>
+    </div>
+    <div class="grid2" id="legSliders"></div>
+    <div class="readout wide">
+      <div><small>coxa</small><b id="lgC">0.0</b></div>
+      <div><small>femur</small><b id="lgF">0.0</b></div>
+      <div><small>tibia</small><b id="lgT">0.0</b></div>
+      <div><small>reachable</small><b id="lgOk" class="chip">yes</b></div>
+    </div>
+    <div class="row"><button id="legNeutral">Back to stand pose</button></div>
+  </div>
+</section>
+
+<!-- ============================ RADAR ============================ -->
+<section id="tab-radar" class="tab" hidden>
+  <div class="panel radarPanel">
+    <canvas id="radar" width="640" height="640"></canvas>
+    <div class="readout wide">
+      <div><small>lidar</small><b id="lidStatus">-</b></div>
+      <div><small>scan age</small><b id="lidAge">-</b></div>
+      <div><small>nearest ahead</small><b id="lidFront">-</b></div>
+      <div><small>target</small><b id="tgtInfo">tap the map</b></div>
+    </div>
+    <label class="slide"><span>Range <b id="rngVal">3.0 m</b></span><input type="range" id="rngSlider" min="1" max="8" step="0.5" value="3"></label>
+    <div class="grid2" id="avoidSliders"></div>
+    <label class="check" id="mockRow" hidden><input type="checkbox" id="chkMock"> Simulated obstacle 0.6 m ahead (mock lidar)</label>
+    <p class="hint">Tapping the map marks a spot and shows its range and bearing. Click-to-go (driving there) arrives in the next drop.</p>
+  </div>
+</section>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>

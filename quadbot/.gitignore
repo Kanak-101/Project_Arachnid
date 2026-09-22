@@ -1,0 +1,16 @@
+# Python & Virtualenv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing & Temp
+.pytest_cache/
+scratch_tmp/
+*.bak
+
+# Environment / IDE
+.env
+.vscode/
+.idea/

@@ -1,0 +1,89 @@
+# quadbot configuration.
+# Values marked UNVERIFIED are starting points: the dashboard's Calibrate tab is
+# how you replace them with measured numbers, then "Save config" writes them back here.
+
+driver: mock            # mock | pca9685   (use mock on a laptop, pca9685 on the Pi)
+pca9685:
+  boards:
+    left:
+      bus: 1                # /dev/i2c-1 on the Pi 5
+      address: 0x40         # default address (no jumpers bridged)
+      freq_hz: 50
+      osc_hz: 25000000      # tune if measured pulse widths are consistently off
+    right:
+      bus: 1                # /dev/i2c-1 on the Pi 5
+      address: 0x41         # A0 jumper bridged on the PCA9685 board
+      freq_hz: 50
+      osc_hz: 25000000
+
+lidar:
+  driver: mock          # mock | rplidar
+  port: /dev/ttyUSB0
+  baud: 115200          # A1 = 115200, A2 = 256000, C1 = 460800
+  clockwise: true       # RPLidar reports angles clockwise; robot frame is counter-clockwise
+  mount_offset_deg: 0   # rotate so 0 deg = robot forward (check with your hand)
+  mask_deg: []          # [[start, end], ...] arcs to ignore (cables, legs, gimbal)
+
+control:
+  rate_hz: 50
+  command_timeout_s: 0.4   # no fresh drive command for this long -> robot stops
+  pulse_abs_min: 500       # the dashboard can never command outside this range
+  pulse_abs_max: 2500
+  sweep_rate_us_s: 300     # speed of the automatic sweep test
+  jog_rate_us_s: 1200      # calibration jogs ramp at this speed, so a slider drag never slams a servo
+
+# All lengths in mm. UNVERIFIED PLACEHOLDERS: measure your legs and edit.
+geometry:
+  coxa: 40       # hip axis -> femur axis
+  femur: 80      # femur axis -> knee axis
+  tibia: 120     # knee axis -> foot tip
+
+# hip_xy: hip position in the body frame (x forward, y left), mm. UNVERIFIED.
+# side: +1 for left legs, -1 for right legs.
+legs:
+  FL: {hip_xy: [ 90,  60], side:  1}
+  FR: {hip_xy: [ 90, -60], side: -1}
+  RL: {hip_xy: [-90,  60], side:  1}
+  RR: {hip_xy: [-90, -60], side: -1}
+
+gait:
+  height_stand: 90
+  height_rest: 45
+  stance_reach: 120     # foot distance from hip axis at rest (default = coxa + femur)
+  step_len: 40          # stride at full stick (mm)
+  step_height: 25
+  yaw_step_deg: 14      # body rotation per stance at full turn stick
+  freq_hz: 0.8
+  speed_scale: 1.0
+  duty_crawl: 0.75
+  duty_trot: 0.5
+
+avoid:
+  enabled: true
+  stop_mm: 350
+  slow_mm: 900
+  arc_deg: 35
+  min_range_mm: 120     # ignore returns closer than this (the robot's own body)
+  turn_gain: 0.8
+  max_age_s: 0.6        # lidar scan older than this counts as "lidar lost"
+
+# Pulse limits come from Servo_Calibration.xlsx. center / us_per_deg are UNVERIFIED
+# midpoint guesses (assumes ~180 deg over the pulse range): calibrate each one.
+# board = PCA9685 board name ('left' or 'right').
+# channel = PCA9685 output pin (0..15). Edit in the dashboard if wiring differs.
+servos:
+  # Left PCA board (address 0x40): FL and RL legs
+  - {id: FL_coxa,  leg: FL, joint: coxa,  model: MG958,  board: left,  channel: 0, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
+  - {id: FL_femur, leg: FL, joint: femur, model: MG958,  board: left,  channel: 1, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}
+  - {id: FL_tibia, leg: FL, joint: tibia, model: MG958,  board: left,  channel: 2, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}
+  - {id: RL_coxa,  leg: RL, joint: coxa,  model: MG958,  board: left,  channel: 3, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
+  - {id: RL_femur, leg: RL, joint: femur, model: MG995,  board: left,  channel: 4, us_min: 600, us_max: 2400, us_center: 1500, us_per_deg: 10.0,  invert: false, max_speed_dps: 120}
+  - {id: RL_tibia, leg: RL, joint: tibia, model: MG995,  board: left,  channel: 5, us_min: 600, us_max: 2400, us_center: 1500, us_per_deg: 10.0,  invert: false, max_speed_dps: 120}
+
+  # Right PCA board (address 0x41): FR and RR legs
+  - {id: FR_coxa,  leg: FR, joint: coxa,  model: MG958,  board: right, channel: 0, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
+  - {id: FR_femur, leg: FR, joint: femur, model: MG996R, board: right, channel: 1, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}
+  - {id: FR_tibia, leg: FR, joint: tibia, model: MG996R, board: right, channel: 2, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}
+  - {id: RR_coxa,  leg: RR, joint: coxa,  model: MG958,  board: right, channel: 3, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
+  - {id: RR_femur, leg: RR, joint: femur, model: MG996R, board: right, channel: 4, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
+  - {id: RR_tibia, leg: RR, joint: tibia, model: MG996R, board: right, channel: 5, us_min: 750, us_max: 2250, us_center: 1500, us_per_deg: 8.33,  invert: false, max_speed_dps: 120}
