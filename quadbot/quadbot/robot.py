@@ -7,6 +7,7 @@ Safety rules, in order of importance:
   * No fresh drive command for `command_timeout_s` -> the drive command falls to zero.
   * Pulses are clamped to each servo's calibrated hard limits and speed-limited.
 """
+import math
 import time
 from dataclasses import asdict
 
@@ -71,7 +72,11 @@ class Robot:
         if not self.armed:
             self._release_all()
         else:
-            self.notice = "Armed. Select leg or servos to enable."
+            if self.mode in ("stand", "crawl", "trot") and not self.enabled:
+                self.enable_servo("all", True)
+                self.notice = f"Armed: All 12 servos active for {self.mode}"
+            else:
+                self.notice = "Armed. Select leg or servos to enable."
 
     def trigger_estop(self):
         self.estop, self.armed, self.sweep = True, False, None
@@ -236,7 +241,10 @@ class Robot:
         if t == "drive":
             def cl(v):
                 return max(-1.0, min(1.0, float(v)))
-            self.cmd = (cl(msg.get("vx", 0)), cl(msg.get("vy", 0)), cl(msg.get("wz", 0)))
+            vx, vy, wz = cl(msg.get("vx", 0)), cl(msg.get("vy", 0)), cl(msg.get("wz", 0))
+            if math.hypot(vx, vy) < 0.04 and abs(wz) < 0.04:
+                vx, vy, wz = 0.0, 0.0, 0.0
+            self.cmd = (vx, vy, wz)
             self.cmd_t = self.clock()
         elif t == "arm":
             self.arm(msg.get("on"))
@@ -395,6 +403,8 @@ class Robot:
         self.tick_ms = (time.perf_counter() - t0) * 1000.0
 
     def _avoid(self, cmd):
+        if not self.avoid.enabled:
+            return cmd, {"state": "off", "front_mm": None, "scale": 1.0}
         scan, age = self.lidar.snapshot()
         return avoidmod.apply(scan, age, cmd, self.avoid)
 
