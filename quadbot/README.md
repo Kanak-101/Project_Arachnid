@@ -41,19 +41,21 @@ Not in this drop (next): click-to-go, person tracking, CPG.
    - **Common Ground:** Tie the external servo power supply ground (`GND`) to the Raspberry Pi `GND` (Pin 6). A floating ground reference causes violent servo jitter/twitching.
    - **Current Capacity:** 12 MG958 / MG996R / MG995 servos draw 10A–15A peak. If voltage drops below ~4.5V, servo microcontrollers reset continuously (chatter/buzzing). Use a dedicated 8A–15A 5V–6V battery/BEC.
    - **Logic VCC:** Connect PCA9685 `VCC` to Pi 3.3V (Pin 1). Connect servo power (5V–6V) only to the `V+` screw terminals.
-4. **Hardware Diagnostic CLI Tool:**
-   Before launching the web server, run the built-in diagnostic tool to test each board, channel, and gait:
+4. **Hardware Diagnostic & Direct Leg Testing:**
+   Before launching the web server, test individual legs or servos without tripping power brownouts:
    ```bash
+   # Direct leg tester (uses exact pulse limits from Servo Calibration v2):
+   python test_legs.py --leg FL             # Test Front-Left leg walking cycle (~0.9A draw)
+   python test_legs.py --leg FR             # Test Front-Right leg
+   python test_legs.py --leg RL             # Test Rear-Left leg
+   python test_legs.py --leg RR             # Test Rear-Right leg
+   python test_legs.py --all-seq            # Test all 4 legs sequentially (one by one)
+   python test_legs.py --joint FL_femur     # Jog test a single joint
+   python test_legs.py                      # Interactive menu
+
+   # Or use the built-in module diagnostic:
    python -m quadbot.diag
    ```
-   Or run specific checks:
-   - `python -m quadbot.diag --scan` (Scans I2C bus for 0x40 and 0x50)
-   - `python -m quadbot.diag --test-servo FL_coxa` (Jogs ONE servo to check channel wiring)
-   - `python -m quadbot.diag --all-1500` (Smoothly centers all 12 servos sequentially)
-   - `python -m quadbot.diag --stand` (Tests Stand pose kinematics)
-   - `python -m quadbot.diag --crawl` (Tests 5-second crawling walk test directly in terminal)
-   - `python -m quadbot.diag --turn` (Tests 5-second in-place turning test)
-   - `python -m quadbot.diag --release` (Immediately releases all channels)
 5. `python -m quadbot.server --host 0.0.0.0`, then open `http://<pi-address>:8000`.
    To start on boot use `deploy/quadbot.service`.
 
