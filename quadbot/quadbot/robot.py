@@ -328,7 +328,8 @@ class Robot:
     # ---------------------------------------------------------------- control tick
     def _write(self, sid, us):
         s = self.servos[sid]
-        if self.out_us.get(sid) is None or abs(self.out_us[sid] - us) >= 0.5:
+        # 1.5 us deadband prevents high-gain digital servos (like MG958 coxa) from micro-hunting
+        if self.out_us.get(sid) is None or abs(self.out_us[sid] - us) >= 1.5:
             try:
                 self.driver.set_pulse(s.channel, us, board=s.board)
                 self.out_us[sid] = us

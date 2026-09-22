@@ -100,17 +100,20 @@ def print_i2c_report(found):
 def test_single_servo(driver, servo, duration_s=2.5):
     """Gently jog a single servo back and forth to verify wiring."""
     print(f"\n---> Testing Servo: {servo.id} (Board: {servo.board}, Ch: {servo.channel})")
-    print("     Jogging: Center -> +12° -> -12° -> Center ...")
     center = servo.us_center
-    step = 12 * servo.us_per_deg * (1 if not servo.invert else -1)
+    is_coxa = "coxa" in servo.id
+    deg_step = 6 if is_coxa else 10
+    dwell = 0.6 if is_coxa else 0.4
+    print(f"     Jogging: Center -> +{deg_step}° -> -{deg_step}° -> Center (Dwell: {dwell}s) ...")
+    step = deg_step * servo.us_per_deg * (1 if not servo.invert else -1)
     
     t0 = time.monotonic()
     try:
         while time.monotonic() - t0 < duration_s:
             driver.set_pulse(servo.channel, center + step, board=servo.board)
-            time.sleep(0.4)
+            time.sleep(dwell)
             driver.set_pulse(servo.channel, center - step, board=servo.board)
-            time.sleep(0.4)
+            time.sleep(dwell)
         driver.set_pulse(servo.channel, center, board=servo.board)
         time.sleep(0.2)
     finally:

@@ -107,6 +107,7 @@ class DirectPCA9685:
         self.is_real = False
         self.smbus = None
         self.has_battery_adc = False
+        self._last_pulse = {}
 
         try:
             try:
@@ -196,6 +197,14 @@ class DirectPCA9685:
         on_tick = 0
         off_tick = length_ticks
 
+        # Deadband filter: don't write to I2C if pulse change is less than 1.5us
+        # Prevents high-gain digital servos (like MG958 coxa) from micro-hunting
+        key = (board_name, channel)
+        last = self._last_pulse.get(key)
+        if last is not None and abs(last - pulse_us) < 1.5:
+            return
+        self._last_pulse[key] = pulse_us
+
         if self.is_real and self.smbus:
             reg = PCA_LED0_ON_L + 4 * channel
             data = [
@@ -215,6 +224,7 @@ class DirectPCA9685:
 
     def release_channel(self, board_name, channel):
         """Cuts power to a specific channel (servo goes limp)."""
+        self._last_pulse.pop((board_name, channel), None)
         addr = BOARDS[board_name]["address"]
         if self.is_real and self.smbus:
             reg = PCA_LED0_ON_L + 4 * channel
@@ -226,6 +236,7 @@ class DirectPCA9685:
 
     def release_all(self):
         """Immediately turns off all channels across both boards without locking 0xFD."""
+        self._last_pulse.clear()
         if self.is_real and self.smbus:
             for bname, binfo in BOARDS.items():
                 addr = binfo["address"]
@@ -239,6 +250,46 @@ class DirectPCA9685:
                 except Exception:
                     pass
         print("\n[STOP] All servo channels released (power cut).")
+
+## ==============================================================================
+# SPEED PRESETS & SMOOTH TRAJECTORY CONFIGURATION
+# ==============================================================================
+
+SPEED_PRESETS = {
+    "slow": {
+        "name": "Slow (Gentle & Stable - Anti-Jitter Default)",
+        "cycle_period_s": 2.8,
+        "femur_lift_amp": 130.0,
+        "tibia_fold_amp": 110.0,
+        "coxa_swing_amp": 65.0,     # Damped coxa amplitude for digital servos
+        "ramp_duration_s": 1.2,
+        "jog_amp": 80.0,            # Gentle +/-80us jog
+        "jog_duration_s": 1.2,
+    },
+    "normal": {
+        "name": "Normal (Standard Walk)",
+        "cycle_period_s": 2.0,
+        "femur_lift_amp": 160.0,
+        "tibia_fold_amp": 135.0,
+        "coxa_swing_amp": 95.0,
+        "ramp_duration_s": 0.9,
+        "jog_amp": 110.0,
+        "jog_duration_s": 0.8,
+    },
+    "fast": {
+        "name": "Fast (Demonstration)",
+        "cycle_period_s": 1.5,
+        "femur_lift_amp": 180.0,
+        "tibia_fold_amp": 150.0,
+        "coxa_swing_amp": 120.0,
+        "ramp_duration_s": 0.6,
+        "jog_amp": 140.0,
+        "jog_duration_s": 0.5,
+    },
+}
+
+CURRENT_SPEED = "slow"
+CURRENT_US = {sid: 1500.0 for sid in SERVOS}
 
 # ==============================================================================
 # TESTING ROUTINES
@@ -260,22 +311,30 @@ atexit.register(cleanup)
 signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
 
 
-def soft_ramp_to(servo_targets, duration_s=1.0, steps=40):
-    """Smoothly moves servos from current/center to target positions."""
+def soft_ramp_to(servo_targets, duration_s=None, steps=50):
+    """Smoothly moves servos from their ACTUAL current positions to targets."""
+    global CURRENT_US
+    if duration_s is None:
+        duration_s = SPEED_PRESETS[CURRENT_SPEED]["ramp_duration_s"]
+
     drv = get_driver()
     dt = duration_s / float(steps)
 
-    # We assume starting from center 1500us
-    for step in range(steps + 1):
+    # Snapshot current positions as starts so transitions are 100% step-free
+    starts = {sid: CURRENT_US.get(sid, 1500.0) for sid in servo_targets}
+
+    for step in range(1, steps + 1):
         alpha = step / float(steps)
-        # Smooth cosine interpolation (S-curve)
+        # Cosine S-curve interpolation (smooth start and stop, zero velocity at endpoints)
         blend = 0.5 * (1.0 - math.cos(math.pi * alpha))
 
         for sid, target_us in servo_targets.items():
             sc = SERVOS[sid]
             clamped = max(sc["min"], min(sc["max"], target_us))
-            current = 1500.0 + (clamped - 1500.0) * blend
+            start = starts[sid]
+            current = start + (clamped - start) * blend
             drv.set_pulse_us(sc["board"], sc["ch"], current)
+            CURRENT_US[sid] = current
 
         time.sleep(dt)
 
@@ -304,6 +363,7 @@ def test_leg_center(leg_name, hold_seconds=3.0):
     for sid in joint_ids:
         sc = SERVOS[sid]
         drv.release_channel(sc["board"], sc["ch"])
+        CURRENT_US[sid] = 1500.0
     print(f"[DONE] Center test for Leg {leg_name} finished.")
 
 
@@ -318,43 +378,42 @@ def test_leg_sweep(leg_name):
 
     for sid in joint_ids:
         sc = SERVOS[sid]
+        is_coxa = "coxa" in sid
+        sweep_dur = 1.6 if is_coxa else 1.2
         print(f"\n--> Testing Joint: {sid} ({sc['model']} on {sc['board']} board, ch {sc['ch']})")
         print(f"    Limits: MIN = {sc['min']}us  |  CENTER = {sc['center']}us  |  MAX = {sc['max']}us")
 
         # 1. Smooth to Center
-        soft_ramp_to({sid: sc["center"]}, duration_s=0.6)
+        soft_ramp_to({sid: sc["center"]}, duration_s=0.8)
         time.sleep(0.4)
 
         # 2. Smooth to Min (safe margin)
         safe_min = sc["min"] + 40
         print(f"    Moving towards MIN: {safe_min}us...")
-        soft_ramp_to({sid: safe_min}, duration_s=1.0)
+        soft_ramp_to({sid: safe_min}, duration_s=sweep_dur)
         time.sleep(0.5)
 
         # 3. Smooth to Max (safe margin)
         safe_max = sc["max"] - 40
         print(f"    Moving towards MAX: {safe_max}us...")
-        soft_ramp_to({sid: safe_max}, duration_s=1.5)
+        soft_ramp_to({sid: safe_max}, duration_s=sweep_dur * 1.5)
         time.sleep(0.5)
 
         # 4. Return to Center & Release
         print(f"    Returning to Center: {sc['center']}us...")
-        soft_ramp_to({sid: sc["center"]}, duration_s=1.0)
+        soft_ramp_to({sid: sc["center"]}, duration_s=sweep_dur)
         time.sleep(0.3)
         drv.release_channel(sc["board"], sc["ch"])
+        CURRENT_US[sid] = sc["center"]
 
     print(f"\n[DONE] Range limit sweep for Leg {leg_name} complete.")
 
 
-def test_leg_gait(leg_name, cycles=8):
+def test_leg_gait(leg_name, cycles=6):
     """
     Executes a realistic stepping/walking cycle trajectory on ONE LEG ONLY.
-    Current draw: ~0.9A peak. All other 9 servos remain completely unpowered.
+    Continuous C1 cosine trajectory prevents high-gain digital servo (MG958 coxa) jitter.
     """
-    print(f"\n=======================================================")
-    print(f"  WALKING GAIT CYCLE: Leg {leg_name}")
-    print(f"  (Simulating Swing & Stance foot motion, ~0.9A draw)")
-    print(f"=======================================================")
     drv = get_driver()
     joint_ids = LEGS[leg_name]
     coxa_id, femur_id, tibia_id = joint_ids
@@ -363,27 +422,30 @@ def test_leg_gait(leg_name, cycles=8):
     sc_f = SERVOS[femur_id]
     sc_t = SERVOS[tibia_id]
 
+    speed_cfg = SPEED_PRESETS[CURRENT_SPEED]
+    cycle_period_s = speed_cfg["cycle_period_s"]
+    femur_lift_amp = speed_cfg["femur_lift_amp"]
+    tibia_fold_amp = speed_cfg["tibia_fold_amp"]
+    coxa_swing_amp = speed_cfg["coxa_swing_amp"]
+
     # Ensure other legs unpowered
     for sid, sc in SERVOS.items():
         if sid not in joint_ids:
             drv.release_channel(sc["board"], sc["ch"])
 
+    print(f"\n=======================================================")
+    print(f"  WALKING GAIT CYCLE: Leg {leg_name} [SPEED: {CURRENT_SPEED.upper()}]")
+    print(f"  Cycle Period: {cycle_period_s}s | Coxa Amp: +/-{int(coxa_swing_amp)}us | Lift: +/-{int(femur_lift_amp)}us")
+    print(f"=======================================================")
+
     print("Soft-starting to nominal stand pose...")
-    soft_ramp_to({coxa_id: 1500, femur_id: 1500, tibia_id: 1500}, duration_s=1.0)
-    time.sleep(0.5)
+    soft_ramp_to({coxa_id: 1500, femur_id: 1500, tibia_id: 1500}, duration_s=1.2)
+    time.sleep(0.4)
 
     print(f"Running {cycles} walk step cycles on {leg_name}... Press Ctrl+C to stop.")
 
-    # Stepping trajectory parameters (amplitudes in microseconds)
-    # Stance: leg pushes back (femur/tibia on ground)
-    # Swing: femur lifts, tibia folds, leg moves forward
-    femur_lift_amp = 180.0   # Lift knee
-    tibia_fold_amp = 150.0   # Flex foot
-    coxa_swing_amp = 140.0   # Swing forward/back
-
     rate_hz = 50.0
     dt = 1.0 / rate_hz
-    cycle_period_s = 1.6
     total_steps = int(cycles * cycle_period_s * rate_hz)
 
     for i in range(total_steps):
@@ -397,16 +459,17 @@ def test_leg_gait(leg_name, cycles=8):
             lift = math.sin(math.pi * swing_progress)
             femur_pulse = 1500.0 - femur_lift_amp * lift
             tibia_pulse = 1500.0 + tibia_fold_amp * lift
-            # Move coxa from rear (-1) to front (+1)
+            # Smooth cosine forward swing: from -coxa_swing_amp to +coxa_swing_amp
             coxa_progress = math.cos(math.pi * swing_progress)
             coxa_pulse = 1500.0 - coxa_swing_amp * coxa_progress
         else:
-            # --- STANCE PHASE (60% of cycle: foot is on the ground pushing backward) ---
+            # --- STANCE PHASE (60% of cycle: foot on ground pushing backward) ---
             stance_progress = (phase - 0.4) / 0.6  # 0.0 to 1.0
             femur_pulse = 1500.0
             tibia_pulse = 1500.0
-            # Move coxa from front (+1) to rear (-1)
-            coxa_pulse = 1500.0 + coxa_swing_amp * (1.0 - 2.0 * stance_progress)
+            # Smooth cosine return: zero velocity and zero acceleration jerk at endpoints
+            coxa_progress = math.cos(math.pi * (1.0 - stance_progress))
+            coxa_pulse = 1500.0 + coxa_swing_amp * coxa_progress
 
         # Clamp to calibrated safety limits from Excel sheet
         c_p = max(sc_c["min"], min(sc_c["max"], coxa_pulse))
@@ -417,6 +480,10 @@ def test_leg_gait(leg_name, cycles=8):
         drv.set_pulse_us(sc_f["board"], sc_f["ch"], f_p)
         drv.set_pulse_us(sc_t["board"], sc_t["ch"], t_p)
 
+        CURRENT_US[coxa_id] = c_p
+        CURRENT_US[femur_id] = f_p
+        CURRENT_US[tibia_id] = t_p
+
         if i % 25 == 0:
             pct = int((i / total_steps) * 100)
             sys.stdout.write(f"\r  Progress: {pct}% | Coxa: {int(c_p)}us | Femur: {int(f_p)}us | Tibia: {int(t_p)}us   ")
@@ -425,46 +492,56 @@ def test_leg_gait(leg_name, cycles=8):
         time.sleep(dt)
 
     print(f"\nReturning {leg_name} to neutral and releasing...")
-    soft_ramp_to({coxa_id: 1500, femur_id: 1500, tibia_id: 1500}, duration_s=0.8)
+    soft_ramp_to({coxa_id: 1500, femur_id: 1500, tibia_id: 1500}, duration_s=1.0)
     time.sleep(0.3)
     for sid in joint_ids:
         drv.release_channel(SERVOS[sid]["board"], SERVOS[sid]["ch"])
+        CURRENT_US[sid] = 1500.0
     print(f"[DONE] Walking gait cycle on Leg {leg_name} finished successfully.")
 
 
 def test_single_joint(joint_id):
-    """Jogs a single joint gently (±150us) to check direction and response."""
+    """Jogs a single joint gently with smooth S-curve ramping and speed presets."""
     if joint_id not in SERVOS:
         print(f"[ERROR] Unknown joint '{joint_id}'. Valid choices: {list(SERVOS.keys())}")
         return
 
     sc = SERVOS[joint_id]
     drv = get_driver()
+    is_coxa = "coxa" in joint_id
+    speed_cfg = SPEED_PRESETS[CURRENT_SPEED]
+
+    # For Coxa (high-gain MG958 digital), use gentler jog amplitude to prevent hunting
+    jog_amp = speed_cfg["jog_amp"] * (0.75 if is_coxa else 1.0)
+    jog_dur = speed_cfg["jog_duration_s"] * (1.3 if is_coxa else 1.0)
+
     print(f"\n--> JOG TEST: {joint_id} ({sc['model']} on {sc['board']} board, ch {sc['ch']})")
+    print(f"    Speed: {CURRENT_SPEED.upper()} | Jog Amp: +/-{int(jog_amp)}us | Duration: {jog_dur:.1f}s")
     print(f"    Safe Pulse Range: {sc['min']}us - {sc['max']}us (Center: {sc['center']}us)")
 
     # Release everything else
     drv.release_all()
     time.sleep(0.1)
 
-    print("Centering servo to 1500us...")
-    soft_ramp_to({joint_id: 1500}, duration_s=0.6)
+    print("1. Centering servo to 1500us...")
+    soft_ramp_to({joint_id: 1500}, duration_s=1.0)
     time.sleep(0.5)
 
-    print("Jogging +150us (CW)...")
-    soft_ramp_to({joint_id: 1650}, duration_s=0.6)
+    print(f"2. Jogging +{int(jog_amp)}us (CW)...")
+    soft_ramp_to({joint_id: 1500.0 + jog_amp}, duration_s=jog_dur)
     time.sleep(0.5)
 
-    print("Jogging -150us (CCW)...")
-    soft_ramp_to({joint_id: 1350}, duration_s=0.8)
+    print(f"3. Jogging -{int(jog_amp)}us (CCW)...")
+    soft_ramp_to({joint_id: 1500.0 - jog_amp}, duration_s=jog_dur * 1.5)
     time.sleep(0.5)
 
-    print("Returning to 1500us Center...")
-    soft_ramp_to({joint_id: 1500}, duration_s=0.6)
+    print("4. Returning to 1500us Center...")
+    soft_ramp_to({joint_id: 1500}, duration_s=jog_dur)
     time.sleep(0.3)
 
-    print("Releasing power...")
+    print("5. Releasing power...")
     drv.release_channel(sc["board"], sc["ch"])
+    CURRENT_US[joint_id] = 1500.0
     print(f"[DONE] Joint {joint_id} jog test complete.")
 
 
@@ -479,6 +556,7 @@ def test_all_legs_sequentially():
         print("Pausing 1.5s before next leg...\n")
         time.sleep(1.5)
     print("\n[DONE] All 4 legs tested sequentially!")
+
 
 def read_battery(bus, addr=0x48, channel=0, divider_ratio=5.0):
     """Reads 2S battery voltage via ADS1115 on AIN0 with 5:1 divider."""
@@ -508,7 +586,10 @@ def read_battery(bus, addr=0x48, channel=0, divider_ratio=5.0):
 # ==============================================================================
 
 def interactive_menu():
+    global CURRENT_SPEED
     drv = get_driver()
+    speed_keys = ["slow", "normal", "fast"]
+
     while True:
         bat_str = "N/A"
         if drv.is_real and drv.smbus and drv.has_battery_adc:
@@ -516,9 +597,11 @@ def interactive_menu():
             if b_info:
                 bat_str = f"{b_info[0]:.2f}V ({int(b_info[1])}%) [{b_info[2]}]"
 
+        cur_speed_desc = SPEED_PRESETS[CURRENT_SPEED]["name"]
+
         print("\n" + "=" * 60)
         print("     QUADBOT DIRECT LEG TESTER (Servo Calibration v2)")
-        print(f"     Battery: {bat_str}")
+        print(f"     Battery: {bat_str} | Speed: {CURRENT_SPEED.upper()}")
         print("=" * 60)
         print("  [1] Test Front-Left  Leg (FL) -> Walking Cycle (~0.9A)")
         print("  [2] Test Front-Right Leg (FR) -> Walking Cycle (~0.9A)")
@@ -528,7 +611,8 @@ def interactive_menu():
         print("  ----------------------------------------------------")
         print("  [6] Center Pose on a Leg (1500us Neutral)")
         print("  [7] Range Limit Sweep on a Leg (MIN -> MAX from Excel)")
-        print("  [8] Test a Single Joint (Jog ±150us)")
+        print("  [8] Test a Single Joint (Jog gentle +/-80us)")
+        print(f"  [v] TOGGLE SPEED (Currently: {CURRENT_SPEED.upper()} - {cur_speed_desc})")
         print("  [s] Re-scan I2C Bus & Re-initialize Boards")
         print("  [b] Check Battery Status (ADS1115)")
         print("  [9] RELEASE ALL SERVOS (Cut Power)")
@@ -564,8 +648,12 @@ def interactive_menu():
                 print("[ERROR] Invalid leg name.")
         elif choice == "8":
             print("Available joints:", ", ".join(SERVOS.keys()))
-            jid = input("Enter joint name [FL_femur]: ").strip() or "FL_femur"
+            jid = input("Enter joint name [FL_coxa]: ").strip() or "FL_coxa"
             test_single_joint(jid)
+        elif choice == "v":
+            idx = (speed_keys.index(CURRENT_SPEED) + 1) % len(speed_keys)
+            CURRENT_SPEED = speed_keys[idx]
+            print(f"\n--> Speed switched to: {CURRENT_SPEED.upper()} ({SPEED_PRESETS[CURRENT_SPEED]['name']})")
         elif choice == "s":
             if drv.is_real and drv.smbus:
                 found_addrs = scan_i2c_bus(drv.smbus)
@@ -599,7 +687,7 @@ def interactive_menu():
         elif choice == "0":
             break
         else:
-            print("Invalid choice, please enter 0-9, s, or b.")
+            print("Invalid choice, please enter 0-9, v, s, or b.")
 
     drv.release_all()
     print("Exiting leg tester. Bye!")
@@ -610,11 +698,14 @@ def interactive_menu():
 # ==============================================================================
 
 def main():
+    global CURRENT_SPEED
     parser = argparse.ArgumentParser(description="Direct Raspberry Pi Leg Tester for Quadbot")
     parser.add_argument("--leg", choices=["FL", "FR", "RL", "RR"], help="Test a specific leg")
     parser.add_argument("--mode", choices=["gait", "sweep", "center"], default="gait",
                         help="Mode for leg test: 'gait' (walking cycle), 'sweep' (min->max), 'center' (1500us)")
-    parser.add_argument("--joint", help="Test a single joint (e.g. FL_femur, FR_coxa)")
+    parser.add_argument("--joint", help="Test a single joint (e.g. FL_coxa, FL_femur)")
+    parser.add_argument("--speed", choices=["slow", "normal", "fast"], default="slow",
+                        help="Speed preset (default: 'slow' for anti-jitter stability)")
     parser.add_argument("--all-seq", action="store_true", help="Test all 4 legs sequentially (one leg at a time)")
     parser.add_argument("--scan", action="store_true", help="Scan I2C bus and unlock PCA9685 boards")
     parser.add_argument("--battery", action="store_true", help="Read 2S battery voltage via ADS1115")
@@ -622,6 +713,7 @@ def main():
 
     args = parser.parse_args()
 
+    CURRENT_SPEED = args.speed
     drv = get_driver()
 
     if args.scan:
@@ -660,7 +752,7 @@ def main():
             test_leg_center(args.leg)
         return
 
-    # If no flags passed, launch the interactive menu
+    # If no flags passed, launch interactive menu
     interactive_menu()
 
 
