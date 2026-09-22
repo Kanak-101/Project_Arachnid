@@ -29,7 +29,7 @@ Not in this drop (next): click-to-go, person tracking, CPG.
 ## Bring-up on the Pi 5
 
 1. `sudo raspi-config` -> Interface Options -> I2C -> enable. Reboot. `sudo apt install i2c-tools`.
-   - **Dual PCA9685 boards:** On the Right PCA9685 board, set address to `0x50` (bridge the **A4** address solder pads: 0x40 + 0x10 = 0x50). Leave the Left PCA9685 board unmodified (default address `0x40`).
+   - **Dual PCA9685 boards:** On the Left PCA9685 board, set address to `0x50` (bridge the **A4** address solder pads: 0x40 + 0x10 = 0x50). Leave the Right PCA9685 board unmodified (default address `0x40`).
    - Wire both boards in parallel to the Pi 5's I2C pins: SDA (pin 3), SCL (pin 5), 3.3V logic (pin 1), and GND (pin 6/9).
 2. `pip install -r requirements-pi.txt` (inside a venv).
    - Add your user to the `i2c` and `dialout` groups so you can access the I2C bus and lidar without sudo:

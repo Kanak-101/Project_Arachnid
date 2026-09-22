@@ -65,12 +65,12 @@ def print_i2c_report(found):
         return False
 
     print(f"Detected I2C addresses on /dev/i2c-1: {[hex(a) for a in found]}")
-    left_ok = 0x40 in found
-    right_ok = 0x50 in found
+    left_ok = 0x50 in found
+    right_ok = 0x40 in found
     ads_ok = 0x48 in found
 
-    print(f"  * Left Board  (0x40): {'[OK] Detected' if left_ok else '[FAIL] Missing!'}")
-    print(f"  * Right Board (0x50): {'[OK] Detected' if right_ok else '[FAIL] Missing! (Verify A4 solder jumper)'}")
+    print(f"  * Left Board  (0x50): {'[OK] Detected' if left_ok else '[FAIL] Missing! (Verify A4 solder jumper)'}")
+    print(f"  * Right Board (0x40): {'[OK] Detected' if right_ok else '[FAIL] Missing!'}")
     print(f"  * ADS1115 ADC (0x48): {'[OK] Detected (2S Battery monitor active)' if ads_ok else '[--] Not detected (Battery monitor optional)'}")
 
     # Unlock PCA9685 boards in case ALL_LED_OFF bit was latched
@@ -91,8 +91,8 @@ def print_i2c_report(found):
 
     if not left_ok or not right_ok:
         print("\n[!] WARNING: Both boards must be detected for normal operation.")
-        if not right_ok:
-            print("    -> For Right Board (0x50): Bridge solder pads for A4 on the PCA9685.")
+        if not left_ok:
+            print("    -> For Left Board (0x50): Bridge solder pads for A4 on the PCA9685.")
             print("       If your board has address 0x41 (A0 bridged), change address in config/robot.yaml.")
     return left_ok and right_ok
 
@@ -352,8 +352,8 @@ def print_jitter_guide():
    - NEVER connect 5V-6V to the PCA9685 VCC pin (it can back-feed the Pi 3.3V rail).
 
 5. SOLDER JUMPERS:
-   - Left PCA9685: 0x40 (default, no solder jumpers).
-   - Right PCA9685: 0x50 (bridge A4 pads).
+   - Left PCA9685: 0x50 (bridge A4 pads).
+   - Right PCA9685: 0x40 (default, no solder jumpers).
 """)
     print("=" * 65)
 

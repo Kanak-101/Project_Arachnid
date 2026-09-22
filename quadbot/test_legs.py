@@ -5,8 +5,8 @@ Direct Leg Testing Script for Raspberry Pi 5 + Dual PCA9685
 Generated from: "Servo Calibration (2).xlsx"
 
 Hardware Configuration:
-- Left Board  (I2C: 0x40, Bus: 1): Front-Left (FL) and Rear-Left (RL)
-- Right Board (I2C: 0x50, Bus: 1): Front-Right (FR) and Rear-Right (RR)
+- Left Board  (I2C: 0x50, Bus: 1): Front-Left (FL) and Rear-Left (RL)
+- Right Board (I2C: 0x40, Bus: 1): Front-Right (FR) and Rear-Right (RR)
 
 Safe Low-Power Testing:
 - Powers ONLY ONE LEG AT A TIME (3 servos, ~0.9A draw)
@@ -41,27 +41,27 @@ __test__ = False  # Mark file as operational script, not a pytest test suite
 # ==============================================================================
 
 BOARDS = {
-    "left":  {"bus": 1, "address": 0x40},  # Front-Left & Rear-Left
-    "right": {"bus": 1, "address": 0x50},  # Front-Right & Rear-Right
+    "left":  {"bus": 1, "address": 0x50},  # Front-Left & Rear-Left
+    "right": {"bus": 1, "address": 0x40},  # Front-Right & Rear-Right
 }
 
 SERVOS = {
-    # --- Front-Left Leg (FL) on Left Board (0x40) ---
+    # --- Front-Left Leg (FL) on Left Board (0x50) ---
     "FL_coxa":  {"leg": "FL", "joint": "coxa",  "board": "left",  "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
     "FL_femur": {"leg": "FL", "joint": "femur", "board": "left",  "ch": 1, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
     "FL_tibia": {"leg": "FL", "joint": "tibia", "board": "left",  "ch": 2, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
 
-    # --- Front-Right Leg (FR) on Right Board (0x50) ---
+    # --- Front-Right Leg (FR) on Right Board (0x40) ---
     "FR_coxa":  {"leg": "FR", "joint": "coxa",  "board": "right", "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
     "FR_femur": {"leg": "FR", "joint": "femur", "board": "right", "ch": 1, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
     "FR_tibia": {"leg": "FR", "joint": "tibia", "board": "right", "ch": 2, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
 
-    # --- Rear-Left Leg (RL) on Left Board (0x40) ---
+    # --- Rear-Left Leg (RL) on Left Board (0x50) ---
     "RL_coxa":  {"leg": "RL", "joint": "coxa",  "board": "left",  "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
     "RL_femur": {"leg": "RL", "joint": "femur", "board": "left",  "ch": 4, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
     "RL_tibia": {"leg": "RL", "joint": "tibia", "board": "left",  "ch": 5, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
 
-    # --- Rear-Right Leg (RR) on Right Board (0x50) ---
+    # --- Rear-Right Leg (RR) on Right Board (0x40) ---
     "RR_coxa":  {"leg": "RR", "joint": "coxa",  "board": "right", "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
     "RR_femur": {"leg": "RR", "joint": "femur", "board": "right", "ch": 4, "model": "MG996R", "min": 500, "max": 2500, "center": 1500},
     "RR_tibia": {"leg": "RR", "joint": "tibia", "board": "right", "ch": 5, "model": "MG996R", "min": 750, "max": 2250, "center": 1500},
@@ -129,12 +129,12 @@ class DirectPCA9685:
             print("=" * 60)
             print(f"Devices detected on bus {bus_num}: {detected_hex if detected_hex else '[NONE]'}")
 
-            left_detected = 0x40 in found_addrs
-            right_detected = 0x50 in found_addrs
+            left_detected = 0x50 in found_addrs
+            right_detected = 0x40 in found_addrs
             self.has_battery_adc = 0x48 in found_addrs
 
-            print(f"  * Left PCA9685  (0x40): {'[OK] Detected' if left_detected else '[FAIL] Missing!'}")
-            print(f"  * Right PCA9685 (0x50): {'[OK] Detected' if right_detected else '[FAIL] Missing!'}")
+            print(f"  * Left PCA9685  (0x50): {'[OK] Detected' if left_detected else '[FAIL] Missing! (Verify A4 solder jumper)'}")
+            print(f"  * Right PCA9685 (0x40): {'[OK] Detected' if right_detected else '[FAIL] Missing!'}")
             print(f"  * ADS1115 ADC   (0x48): {'[OK] Detected (Battery monitor active)' if self.has_battery_adc else '[--] Not detected (Battery monitor skipped)'}")
             print("=" * 60)
 
