@@ -47,33 +47,33 @@ def test_pca9685_dual_boards_init_and_routing():
     bus = FakeBus()
     boards = {
         "left": {"bus": 1, "address": 0x40},
-        "right": {"bus": 1, "address": 0x41},
+        "right": {"bus": 1, "address": 0x50},
     }
     d = PCA9685Driver(boards=boards, bus_obj=bus)
     # Both boards should be initialized with 50 Hz prescaler (121)
     assert (0x40, 0xFE, 121) in bus.byte
-    assert (0x41, 0xFE, 121) in bus.byte
+    assert (0x50, 0xFE, 121) in bus.byte
 
     bus.block.clear()
     d.set_pulse(0, 1500, board="left")
     assert bus.block[-1][0] == 0x40 and bus.block[-1][1] == 0x06
 
     d.set_pulse(0, 1600, board="right")
-    assert bus.block[-1][0] == 0x41 and bus.block[-1][1] == 0x06
+    assert bus.block[-1][0] == 0x50 and bus.block[-1][1] == 0x06
 
     d.release(2, board="left")
     assert bus.block[-1][0] == 0x40 and bus.block[-1][1] == 0x06 + 4 * 2
     assert bus.block[-1][2] == [0, 0, 0, 0x10]
 
     d.release(3, board="right")
-    assert bus.block[-1][0] == 0x41 and bus.block[-1][1] == 0x06 + 4 * 3
+    assert bus.block[-1][0] == 0x50 and bus.block[-1][1] == 0x06 + 4 * 3
     assert bus.block[-1][2] == [0, 0, 0, 0x10]
 
     bus.block.clear()
     d.release_all()
     addrs = [entry[0] for entry in bus.block]
     assert addrs.count(0x40) == 16
-    assert addrs.count(0x41) == 16
+    assert addrs.count(0x50) == 16
 
 
 def test_mock_driver_multi_board():

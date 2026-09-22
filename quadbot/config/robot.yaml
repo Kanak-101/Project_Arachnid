@@ -12,7 +12,7 @@ pca9685:
       osc_hz: 25000000      # tune if measured pulse widths are consistently off
     right:
       bus: 1                # /dev/i2c-1 on the Pi 5
-      address: 0x41         # A0 jumper bridged on the PCA9685 board
+      address: 0x50         # PCA9685 board address 0x50 (A4 bridged)
       freq_hz: 50
       osc_hz: 25000000
 
@@ -80,7 +80,7 @@ servos:
   - {id: RL_femur, leg: RL, joint: femur, model: MG995,  board: left,  channel: 4, us_min: 600, us_max: 2400, us_center: 1500, us_per_deg: 10.0,  invert: false, max_speed_dps: 120}
   - {id: RL_tibia, leg: RL, joint: tibia, model: MG995,  board: left,  channel: 5, us_min: 600, us_max: 2400, us_center: 1500, us_per_deg: 10.0,  invert: false, max_speed_dps: 120}
 
-  # Right PCA board (address 0x41): FR and RR legs
+  # Right PCA board (address 0x50): FR and RR legs
   - {id: FR_coxa,  leg: FR, joint: coxa,  model: MG958,  board: right, channel: 0, us_min: 500, us_max: 2500, us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 120}
   - {id: FR_femur, leg: FR, joint: femur, model: MG996R, board: right, channel: 1, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}
   - {id: FR_tibia, leg: FR, joint: tibia, model: MG996R, board: right, channel: 2, us_min: 620, us_max: 2380, us_center: 1500, us_per_deg: 9.78,  invert: false, max_speed_dps: 120}

@@ -29,9 +29,9 @@ Not in this drop (next): click-to-go, person tracking, CPG.
 ## Bring-up on the Pi 5
 
 1. `sudo raspi-config` -> Interface Options -> I2C -> enable. Reboot. `sudo apt install i2c-tools`.
-   - **Dual PCA9685 boards:** On the Right PCA9685 board, bridge the **A0** address solder pads (giving address `0x41`). Leave the Left PCA9685 board unmodified (default address `0x40`).
+   - **Dual PCA9685 boards:** On the Right PCA9685 board, set address to `0x50` (bridge the **A4** address solder pads: 0x40 + 0x10 = 0x50). Leave the Left PCA9685 board unmodified (default address `0x40`).
    - Wire both boards in parallel to the Pi 5's I2C pins: SDA (pin 3), SCL (pin 5), 3.3V logic (pin 1), and GND (pin 6/9).
-   - Running `i2cdetect -y 1` should show both `40` (left board) and `41` (right board).
+   - Running `i2cdetect -y 1` should show both `40` (left board) and `50` (right board).
 2. `pip install -r requirements-pi.txt` (inside a venv). Add yourself to the serial group for the lidar: `sudo usermod -aG dialout $USER`, then log out and in.
 3. Edit `config/robot.yaml`: `driver: pca9685`, `lidar: driver: rplidar` (check `port` and `baud`: A1 = 115200, A2 = 256000, C1 = 460800).
 4. **Power:** Servos need their own 5 to 6 V supply (a BEC or battery pack) into the PCA9685 V+ terminals of **both** boards, with its ground joined to the Pi's ground (common ground). Never power servos from the Pi. Twelve servos can pull 10+ amps under load, so use a supply that can deliver it.
