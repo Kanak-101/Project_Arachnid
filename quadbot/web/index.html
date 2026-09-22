@@ -39,11 +39,50 @@
     <div class="panel-header-row">
       <h2>Mode & Motion Control</h2>
       <div class="servo-ctrl-group">
-        <button id="btnEnableAllDrive" class="btn-quick-en">⚡ Enable All Servos</button>
+        <button id="btnEnableAllDrive" class="btn-quick-en">⚡ Enable All</button>
         <button id="btnReleaseAllDrive" class="btn-quick-rel">Release All</button>
         <span id="servoCountDrive" class="badge">0 / 12 active</span>
       </div>
     </div>
+
+    <!-- Active Gait Scope (Single Leg / Single Servo Isolation) -->
+    <div class="scope-box">
+      <div class="scope-header">
+        <b>Gait Power Scope (Low-Power Testing):</b>
+        <span id="scopeNotice" class="badge scope-badge">Pick scope</span>
+      </div>
+      <div class="seg" id="scopeSeg">
+        <button data-scope="all">All 12 Servos</button>
+        <button data-scope="FL">Leg FL (3)</button>
+        <button data-scope="FR">Leg FR (3)</button>
+        <button data-scope="RL">Leg RL (3)</button>
+        <button data-scope="RR">Leg RR (3)</button>
+        <button data-scope="left">Left (6)</button>
+        <button data-scope="right">Right (6)</button>
+      </div>
+      <div class="single-servo-select">
+        <label>Single joint:
+          <select id="singleServoSelect">
+            <option value="">-- Choose individual joint --</option>
+            <option value="FL_coxa">FL coxa (Left Ch 0)</option>
+            <option value="FL_femur">FL femur (Left Ch 1)</option>
+            <option value="FL_tibia">FL tibia (Left Ch 2)</option>
+            <option value="RL_coxa">RL coxa (Left Ch 3)</option>
+            <option value="RL_femur">RL femur (Left Ch 4)</option>
+            <option value="RL_tibia">RL tibia (Left Ch 5)</option>
+            <option value="FR_coxa">FR coxa (Right Ch 0)</option>
+            <option value="FR_femur">FR femur (Right Ch 1)</option>
+            <option value="FR_tibia">FR tibia (Right Ch 2)</option>
+            <option value="RR_coxa">RR coxa (Right Ch 3)</option>
+            <option value="RR_femur">RR femur (Right Ch 4)</option>
+            <option value="RR_tibia">RR tibia (Right Ch 5)</option>
+          </select>
+        </label>
+        <button id="btnEnableSingleServo" class="qbtn">Power Only This Joint</button>
+      </div>
+    </div>
+
+    <h2>Walking Mode</h2>
     <div class="seg" id="modeSeg">
       <button data-mode="rest">Rest</button>
       <button data-mode="stand">Stand</button>
@@ -52,7 +91,7 @@
     </div>
 
     <div class="quick-debug-box">
-      <div class="quick-debug-title">Quick Actions & Motion Debugging:</div>
+      <div class="quick-debug-title">Quick Motion Tests (Moves Only Active Servos Above):</div>
       <div class="quick-btn-row">
         <button id="btnQuickStand" class="qbtn">🧍 Stand Pose</button>
         <button id="btnQuickCrawl" class="qbtn">🚶 Walk Fwd</button>
@@ -63,7 +102,7 @@
         <button id="btnQuickStop" class="qbtn stop">⏹ Stop</button>
       </div>
     </div>
-    <p class="hint">Arm servos first. Switching to Stand, Crawl, or Trot auto-enables all servos smoothly. Keyboard: W/A/S/D move, Q/E turn, Space = E-stop.</p>
+    <p class="hint">Arm servos first. If your power supply cannot power 12 servos at once, pick <b>Leg FL (3)</b> or a <b>Single joint</b> above to test gaits safely with low current!</p>
   </div>
 
   <div class="panel sticks">

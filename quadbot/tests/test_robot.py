@@ -254,11 +254,29 @@ def test_auto_enable_servos_in_walking_mode():
     r, _ = make()
     r.arm(True)
     assert len(r.enabled) == 0
+    # Safe low-power default enables FL leg (3 servos) to avoid high inrush brownout
     r.set_mode("stand")
+    assert len(r.enabled) == 3
+    assert r.enabled == {"FL_coxa", "FL_femur", "FL_tibia"}
+
+    # Enabling all servos explicitly activates all 12
+    r.enable_servo("all", True)
     assert len(r.enabled) == 12
     st = r.state_message()
     assert st["num_enabled"] == 12
     assert st["total_servos"] == 12
+    assert len(st["enabled_list"]) == 12
+
+    # Test single-servo isolation
+    r.enable_only("FR_femur")
+    assert r.enabled == {"FR_femur"}
+    assert len(r.enabled) == 1
+
+    # Test single-leg isolation
+    r.enable_leg("RR", True, exclusive=True)
+    assert r.enabled == {"RR_coxa", "RR_femur", "RR_tibia"}
+    assert len(r.enabled) == 3
+
 
 
 def test_quick_test_actions_and_servo_enable_all():

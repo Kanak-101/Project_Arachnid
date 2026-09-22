@@ -69,7 +69,8 @@ function onState(m) {
   if (m.notice && m.notice !== noticeText) showNotice(m.notice, m.estop);
   noticeText = m.notice;
 
-  const numEn = m.num_enabled != null ? m.num_enabled : Object.values(m.live || {}).filter(x => x.en).length;
+  const enList = m.enabled_list || Object.keys(m.live || {}).filter(k => m.live[k].en);
+  const numEn = m.num_enabled != null ? m.num_enabled : enList.length;
   const totalS = m.total_servos || 12;
   const sBadge = $('#servoBadge');
   if (sBadge) {
@@ -82,6 +83,34 @@ function onState(m) {
     sCount.textContent = `${numEn} / ${totalS} active`;
     sCount.classList.toggle('all-on', numEn === totalS);
   }
+
+  const sNotice = $('#scopeNotice');
+  if (sNotice) {
+    if (numEn === 0) sNotice.textContent = 'None active (limp)';
+    else if (numEn === 1) sNotice.textContent = `1 servo (${enList[0]})`;
+    else if (numEn === 3) {
+      const leg = ['FL', 'FR', 'RL', 'RR'].find(l => ['coxa', 'femur', 'tibia'].every(j => enList.includes(`${l}_${j}`)));
+      sNotice.textContent = leg ? `Leg ${leg} active (3 servos)` : `${numEn} servos active`;
+    } else if (numEn === 6) {
+      const isLeft = enList.every(id => id.startsWith('FL') || id.startsWith('RL'));
+      const isRight = enList.every(id => id.startsWith('FR') || id.startsWith('RR'));
+      sNotice.textContent = isLeft ? 'Left board active (6)' : isRight ? 'Right board active (6)' : '6 servos active';
+    } else if (numEn === 12) {
+      sNotice.textContent = 'All 12 servos active';
+    } else {
+      sNotice.textContent = `${numEn} active`;
+    }
+  }
+
+  $$('#scopeSeg button').forEach((b) => {
+    const sc = b.dataset.scope;
+    let on = false;
+    if (sc === 'all') on = numEn === 12;
+    else if (['FL', 'FR', 'RL', 'RR'].includes(sc)) on = numEn === 3 && ['coxa', 'femur', 'tibia'].every(j => enList.includes(`${sc}_${j}`));
+    else if (sc === 'left') on = numEn === 6 && enList.every(id => id.startsWith('FL') || id.startsWith('RL'));
+    else if (sc === 'right') on = numEn === 6 && enList.every(id => id.startsWith('FR') || id.startsWith('RR'));
+    b.classList.toggle('on', on);
+  });
 
   $('#chkDerate').checked = m.auto_derate;
   $('#derateBar').style.width = Math.round(m.gait_scale * 100) + '%';
@@ -489,6 +518,25 @@ $$('.dpad-btn').forEach((btn) => {
   btn.addEventListener('pointerup', onEnd);
   btn.addEventListener('pointerleave', onEnd);
   btn.addEventListener('pointercancel', onEnd);
+// Scope selector listeners (individual leg, board, or servo isolation)
+$$('#scopeSeg button').forEach((b) => {
+  b.addEventListener('click', () => {
+    const sc = b.dataset.scope;
+    if (sc === 'all') {
+      send({ t: 'servo_enable_all', on: true });
+    } else if (['FL', 'FR', 'RL', 'RR'].includes(sc)) {
+      send({ t: 'enable_leg', leg: sc, on: true, exclusive: true });
+    } else if (['left', 'right'].includes(sc)) {
+      send({ t: 'enable_board', board: sc, on: true, exclusive: true });
+    }
+  });
+});
+
+$('#btnEnableSingleServo')?.addEventListener('click', () => {
+  const sid = $('#singleServoSelect')?.value;
+  if (sid) {
+    send({ t: 'enable_only', id: sid });
+  }
 });
 
 connect();

@@ -68,9 +68,8 @@ class Robot:
         self.armed = bool(on)
         if not self.armed:
             self._release_all()
-        elif self.mode in ("stand", "crawl", "trot") and not self.enabled:
-            self.enable_servo("all", True)
-            self.notice = f"Armed and enabled all servos in {self.mode} mode"
+        else:
+            self.notice = "Armed. Select leg or servos to enable."
 
     def trigger_estop(self):
         self.estop, self.armed, self.sweep = True, False, None
@@ -113,6 +112,44 @@ class Robot:
             self.driver.release(s.channel, board=s.board)
             if self.sweep and self.sweep["id"] == sid:
                 self.sweep = None
+
+    def enable_leg(self, leg, on=True, exclusive=False):
+        """Enable or disable all 3 servos of a single leg (coxa, femur, tibia).
+        If exclusive=True, releases all other servos first so only this leg draws power."""
+        if not self.armed and on:
+            self.notice = "Arm the robot before enabling servos"
+            return
+        if exclusive and on:
+            self._release_all()
+            self.armed = True
+        for j in ("coxa", "femur", "tibia"):
+            sid = f"{leg}_{j}"
+            if sid in self.servos:
+                self.enable_servo(sid, on)
+        self.notice = f"{'Enabled' if on else 'Disabled'} leg {leg} ({len(self.enabled)} active servos)"
+
+    def enable_board(self, board, on=True, exclusive=False):
+        """Enable or disable all servos on one PCA board ('left' or 'right')."""
+        if not self.armed and on:
+            self.notice = "Arm the robot before enabling servos"
+            return
+        if exclusive and on:
+            self._release_all()
+            self.armed = True
+        for s in self.servos.values():
+            if s.board == board:
+                self.enable_servo(s.id, on)
+        self.notice = f"{'Enabled' if on else 'Disabled'} {board} board ({len(self.enabled)} active servos)"
+
+    def enable_only(self, sid):
+        """Release all other servos and enable ONLY this single servo (for safe low-power testing)."""
+        if not self.armed:
+            self.notice = "Arm the robot before enabling servos"
+            return
+        self._release_all()
+        self.armed = True
+        self.enable_servo(sid, True)
+        self.notice = f"Enabled ONLY {sid} (1 servo active, low power safe)"
 
     def set_us(self, sid, us):
         if sid in self.servos and self.mode == "calib":
@@ -165,8 +202,8 @@ class Robot:
         self.cmd = (0.0, 0.0, 0.0)
         self.mode = mode
         if self.armed and mode in ("stand", "crawl", "trot") and not self.enabled:
-            self.enable_servo("all", True)
-            self.notice = f"Mode {mode}: all servos enabled"
+            self.enable_leg("FL", True)
+            self.notice = f"Mode {mode}: Front-Left (FL) leg enabled (safe low-power)"
 
     def set_params(self, msg):
         gp = self.gait.p
@@ -211,8 +248,14 @@ class Robot:
             self.enable_servo(msg.get("id"), bool(msg.get("on")))
         elif t == "servo_enable_all":
             self.enable_servo("all", bool(msg.get("on", True)))
+        elif t == "enable_leg":
+            self.enable_leg(msg.get("leg"), bool(msg.get("on", True)), bool(msg.get("exclusive", False)))
+        elif t == "enable_board":
+            self.enable_board(msg.get("board"), bool(msg.get("on", True)), bool(msg.get("exclusive", False)))
+        elif t == "enable_only":
+            self.enable_only(msg.get("id"))
         elif t == "quick_test":
-            self.quick_test(msg.get("action"))
+            self.quick_test(msg.get("action"), target=msg.get("target"))
         elif t == "servo_us":
             self.set_us(msg.get("id"), msg.get("us"))
         elif t == "servo_cal":
@@ -230,45 +273,52 @@ class Robot:
         elif t == "mock_obstacle" and hasattr(self.lidar, "set_obstacle"):
             self.lidar.set_obstacle(float(msg["dist_mm"]) if msg.get("on") else None)
 
-    def quick_test(self, action):
+    def quick_test(self, action, target=None):
         if not self.armed:
             self.arm(True)
+        if target:
+            if target == "all":
+                self.enable_servo("all", True)
+            elif target in ("FL", "FR", "RL", "RR"):
+                self.enable_leg(target, True, exclusive=True)
+            elif target in ("left", "right"):
+                self.enable_board(target, True, exclusive=True)
+            elif target in self.servos:
+                self.enable_only(target)
+        elif not self.enabled:
+            self.enable_leg("FL", True, exclusive=True)
+
+        count_desc = f"{len(self.enabled)} active" if len(self.enabled) < 12 else "all 12 active"
         if action == "stand":
             self.set_mode("stand")
-            self.enable_servo("all", True)
             self.cmd = (0.0, 0.0, 0.0)
             self.cmd_t = self.clock()
-            self.notice = "Quick test: Standing pose"
+            self.notice = f"Stand pose ({count_desc})"
         elif action == "crawl_fwd":
             self.set_mode("crawl")
-            self.enable_servo("all", True)
             self.cmd = (0.6, 0.0, 0.0)
             self.cmd_t = self.clock()
-            self.notice = "Quick test: Walking forward (crawl)"
+            self.notice = f"Walking forward ({count_desc})"
         elif action == "crawl_back":
             self.set_mode("crawl")
-            self.enable_servo("all", True)
             self.cmd = (-0.6, 0.0, 0.0)
             self.cmd_t = self.clock()
-            self.notice = "Quick test: Walking backward"
+            self.notice = f"Walking backward ({count_desc})"
         elif action == "turn_left":
             self.set_mode("crawl")
-            self.enable_servo("all", True)
             self.cmd = (0.0, 0.0, 0.8)
             self.cmd_t = self.clock()
-            self.notice = "Quick test: Turning left (CCW)"
+            self.notice = f"Turning left ({count_desc})"
         elif action == "turn_right":
             self.set_mode("crawl")
-            self.enable_servo("all", True)
             self.cmd = (0.0, 0.0, -0.8)
             self.cmd_t = self.clock()
-            self.notice = "Quick test: Turning right (CW)"
+            self.notice = f"Turning right ({count_desc})"
         elif action == "zero_1500":
             self.set_mode("calib")
-            self.enable_servo("all", True)
             for sid in self.servos:
                 self.manual_target[sid] = 1500.0
-            self.notice = "Quick test: Centered at 1500 µs"
+            self.notice = f"Centered to 1500 µs ({count_desc})"
         elif action == "stop":
             self.cmd = (0.0, 0.0, 0.0)
             self.notice = "Quick test: Stopped"
@@ -380,6 +430,7 @@ class Robot:
             "mode": self.mode,
             "num_enabled": len(self.enabled),
             "total_servos": len(self.servos),
+            "enabled_list": list(self.enabled),
             "cal_version": self.cal_version,
             "notice": self.notice,
             "live": live,

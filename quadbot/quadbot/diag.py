@@ -1,16 +1,20 @@
 """Standalone hardware diagnostic & bring-up utility for quadbot.
 
+Allows testing gait and motion on INDIVIDUAL SERVOS or SINGLE LEGS,
+eliminating high current draw and avoiding power supply brownouts.
+
 Run on the Raspberry Pi:
     python -m quadbot.diag
-or with flags:
-    python -m quadbot.diag --scan
-    python -m quadbot.diag --test-servo FL_coxa
-    python -m quadbot.diag --test-leg FL
-    python -m quadbot.diag --all-1500
-    python -m quadbot.diag --stand
-    python -m quadbot.diag --crawl
-    python -m quadbot.diag --turn
-    python -m quadbot.diag --release
+
+Run specific single-servo or single-leg gait tests:
+    python -m quadbot.diag --gait-servo FL_femur   # Only 1 servo powered!
+    python -m quadbot.diag --gait-leg FL          # Only 3 servos powered!
+    python -m quadbot.diag --gait-board left      # Only 6 servos powered!
+    python -m quadbot.diag --stand-leg FL         # Stand pose on 1 leg
+    python -m quadbot.diag --test-servo FL_coxa   # Jog single servo
+    python -m quadbot.diag --scan                 # Scan I2C for 0x40 and 0x50
+    python -m quadbot.diag --all-1500             # Soft-center all 12
+    python -m quadbot.diag --release              # Release all servos
 """
 import argparse
 import sys
@@ -104,15 +108,29 @@ def soft_center_all(driver, servos, delay_s=0.15):
     print("     [OK] All 12 servos centered at 1500 µs.")
 
 
-def test_stand_pose(driver, cfg, servos, duration_s=4.0):
-    """Calculate and set the 4 legs into the stand pose using kinematics."""
-    print(f"\n---> Commanding Stand Pose (height={cfg['gait']['height_stand']} mm)...")
+def test_stand_pose(driver, cfg, servos, duration_s=4.0, target=None):
+    """Calculate and set legs into stand pose using kinematics. Supports single leg/servo targeting."""
+    active_sids = set()
+    if target in servos:
+        active_sids.add(target)
+        desc = f"Single Servo '{target}'"
+    elif target in ("FL", "FR", "RL", "RR"):
+        active_sids.update(f"{target}_{j}" for j in ("coxa", "femur", "tibia") if f"{target}_{j}" in servos)
+        desc = f"Single Leg '{target}' (3 servos)"
+    elif target in ("left", "right"):
+        active_sids.update(s.id for s in servos.values() if s.board == target)
+        desc = f"{target.capitalize()} Board (6 servos)"
+    else:
+        active_sids.update(servos.keys())
+        desc = "All 12 Servos"
+
+    driver.release_all()
+    print(f"\n---> Commanding Stand Pose on {desc} (height={cfg['gait']['height_stand']} mm)...")
     g = cfg["geometry"]
     kin = LegKinematics(g["coxa"], g["femur"], g["tibia"])
     gait = GaitEngine(cfg)
     feet = gait.nominal(cfg["gait"]["height_stand"])
 
-    # Calculate angles
     targets = {}
     for leg, (x, y, z) in feet.items():
         th1, a, b, ok = kin.ik_deg(x, y, z)
@@ -120,21 +138,45 @@ def test_stand_pose(driver, cfg, servos, duration_s=4.0):
         targets[f"{leg}_femur"] = a
         targets[f"{leg}_tibia"] = b
 
-    # Ramp each servo to target
-    for sid, s in servos.items():
-        us = s.deg_to_us(targets[sid])
-        driver.set_pulse(s.channel, us, board=s.board)
-        time.sleep(0.05)
-    print("     [OK] In Stand Pose. Holding for", duration_s, "seconds...")
+    for sid in active_sids:
+        us = servos[sid].deg_to_us(targets[sid])
+        driver.set_pulse(servos[sid].channel, us, board=servos[sid].board)
+        time.sleep(0.04)
+    print(f"     [OK] In Stand Pose. Holding for {duration_s} seconds...")
     time.sleep(duration_s)
+    driver.release_all()
+    print("     Released.")
 
 
-def run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=6.0):
-    """Run real walking gait test directly in terminal."""
+def run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=6.0, target=None):
+    """Run real walking gait test directly in terminal.
+    Can run on an INDIVIDUAL SERVO, a SINGLE LEG, a SINGLE BOARD, or ALL SERVOS.
+    Unselected servos are completely released/unpowered (0mA current draw).
+    """
     g = cfg["geometry"]
     kin = LegKinematics(g["coxa"], g["femur"], g["tibia"])
     gait = GaitEngine(cfg)
-    print(f"\n---> Running Gait Test: {mode.upper()} with cmd={cmd} for {duration_s}s...")
+
+    # Resolve active servos
+    active_sids = set()
+    if target in servos:
+        active_sids.add(target)
+        desc = f"Single Servo '{target}' (1 servo active, low-power safe)"
+    elif target in ("FL", "FR", "RL", "RR"):
+        active_sids.update(f"{target}_{j}" for j in ("coxa", "femur", "tibia") if f"{target}_{j}" in servos)
+        desc = f"Single Leg '{target}' (3 servos active, low-power safe)"
+    elif target in ("left", "right"):
+        active_sids.update(s.id for s in servos.values() if s.board == target)
+        desc = f"{target.capitalize()} Board ({len(active_sids)} servos active)"
+    else:
+        active_sids.update(servos.keys())
+        desc = f"All 12 Servos ({len(active_sids)} active)"
+
+    # Release everything first so only target receives pulses
+    driver.release_all()
+
+    print(f"\n---> Running Gait Test: {mode.upper()} with cmd={cmd}")
+    print(f"     Target: {desc} | Duration: {duration_s}s...")
     
     t0 = time.monotonic()
     dt = 0.02
@@ -144,39 +186,48 @@ def run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), durati
         feet = gait.update(dt, mode, cmd)
         for leg, (x, y, z) in feet.items():
             th1, a, b, ok = kin.ik_deg(x, y, z)
-            driver.set_pulse(servos[f"{leg}_coxa"].channel, servos[f"{leg}_coxa"].deg_to_us(th1), board=servos[f"{leg}_coxa"].board)
-            driver.set_pulse(servos[f"{leg}_femur"].channel, servos[f"{leg}_femur"].deg_to_us(a), board=servos[f"{leg}_femur"].board)
-            driver.set_pulse(servos[f"{leg}_tibia"].channel, servos[f"{leg}_tibia"].deg_to_us(b), board=servos[f"{leg}_tibia"].board)
+            leg_targets = {
+                f"{leg}_coxa": th1,
+                f"{leg}_femur": a,
+                f"{leg}_tibia": b
+            }
+            for sid in active_sids:
+                if sid in leg_targets:
+                    driver.set_pulse(servos[sid].channel, servos[sid].deg_to_us(leg_targets[sid]), board=servos[sid].board)
         
         elapsed = time.monotonic() - t0
         if elapsed - last_print > 1.0:
             last_print = elapsed
-            print(f"     Walking... {elapsed:.1f}s / {duration_s}s | Swing legs: {gait.swing}")
+            print(f"     Walking... {elapsed:.1f}s / {duration_s}s | Active: {len(active_sids)} servos | Swing: {gait.swing}")
         
         took = time.perf_counter() - t_start
         if took < dt:
             time.sleep(dt - took)
-    print("     Gait test complete.")
+    driver.release_all()
+    print("     Gait test complete & all servos released.")
 
 
 def interactive_menu(cfg, driver, servos):
     while True:
-        print("\n" + "=" * 55)
-        print("           QUADBOT DIAGNOSTIC & DEBUG MENU")
-        print("=" * 55)
+        print("\n" + "=" * 60)
+        print("          QUADBOT HARDWARE & GAIT DIAGNOSTIC MENU")
+        print("=" * 60)
         print("  1. I2C Bus Scan (Check 0x40 & 0x50)")
-        print("  2. Test Single Servo (Cycle through joints)")
-        print("  3. Test Single Leg (FL, FR, RL, or RR)")
-        print("  4. Soft Center All 12 Servos (1500 µs)")
-        print("  5. Test Stand Pose (Kinematics IK)")
-        print("  6. Test Crawl Walk (Forward)")
-        print("  7. Test Turn (Rotate in place)")
-        print("  8. Release All Servos (Limp / Safe)")
-        print("  9. Hardware Jitter Troubleshooting Guide")
+        print("  2. Test Single Servo Jog (Cycle through joints)")
+        print("  3. Test Single Leg Jog (FL, FR, RL, RR)")
+        print("  4. GAIT WALK TEST: Single Servo (Only 1 servo powered!)")
+        print("  5. GAIT WALK TEST: Single Leg (Only 3 servos powered!)")
+        print("  6. GAIT WALK TEST: Single Board (6 servos: Left or Right)")
+        print("  7. Stand Pose Test (Single Leg or All)")
+        print("  8. Soft Center All 12 Servos (1500 µs)")
+        print("  9. Release All Servos (Limp / Safe)")
+        print(" 10. Full 12-Servo Crawl Walk Test")
+        print(" 11. Full 12-Servo Turn Test")
+        print(" 12. Hardware Jitter Troubleshooting Guide")
         print("  0. Exit")
-        print("=" * 55)
+        print("=" * 60)
 
-        choice = input("Enter choice (0-9): ").strip()
+        choice = input("Enter choice (0-12): ").strip()
         if choice == "1":
             found = scan_i2c_bus(1)
             print_i2c_report(found)
@@ -204,19 +255,42 @@ def interactive_menu(cfg, driver, servos):
             else:
                 print("Invalid leg name.")
         elif choice == "4":
-            soft_center_all(driver, servos)
+            print("\nSelect servo to test gait on (ONLY this servo will move):")
+            s_list = list(servos.keys())
+            for i, sid in enumerate(s_list):
+                print(f"  {i + 1:2d}. {sid}")
+            sel = input("Pick servo number or id: ").strip()
+            sid = s_list[int(sel) - 1] if sel.isdigit() and 1 <= int(sel) <= len(s_list) else sel
+            if sid in servos:
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=sid)
+            else:
+                print("Invalid servo.")
         elif choice == "5":
-            test_stand_pose(driver, cfg, servos)
+            leg = input("Enter leg to test gait (FL, FR, RL, RR): ").strip().upper()
+            if leg in ("FL", "FR", "RL", "RR"):
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=leg)
+            else:
+                print("Invalid leg name.")
         elif choice == "6":
-            run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0)
-            driver.release_all()
+            b = input("Enter board to test (left or right): ").strip().lower()
+            if b in ("left", "right"):
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=b)
+            else:
+                print("Invalid board name.")
         elif choice == "7":
-            run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.0, 0.0, 0.8), duration_s=5.0)
-            driver.release_all()
+            leg = input("Enter leg for stand pose (FL, FR, RL, RR or 'all'): ").strip().upper()
+            target = leg if leg in ("FL", "FR", "RL", "RR") else None
+            test_stand_pose(driver, cfg, servos, duration_s=4.0, target=target)
         elif choice == "8":
+            soft_center_all(driver, servos)
+        elif choice == "9":
             driver.release_all()
             print("All servos released (limp).")
-        elif choice == "9":
+        elif choice == "10":
+            run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0)
+        elif choice == "11":
+            run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.0, 0.0, 0.8), duration_s=5.0)
+        elif choice == "12":
             print_jitter_guide()
         elif choice == "0":
             driver.release_all()
@@ -244,34 +318,37 @@ def print_jitter_guide():
    - If your power supply drops below 4.5V, the servo internal microcontroller
      browns out and resets continuously (sounds like clicking/buzzing).
 
-3. LOGIC VOLTAGE vs SERVO VOLTAGE:
+3. TESTING WITH LOW POWER:
+   - Use 'python -m quadbot.diag --gait-leg FL' to test 1 leg (only 3 servos).
+   - Use 'python -m quadbot.diag --gait-servo FL_femur' to test 1 joint.
+   - This lets you verify gaits and kinematics even with a 2A bench supply!
+
+4. LOGIC VOLTAGE vs SERVO VOLTAGE:
    - PCA9685 VCC (logic): Connect to Pi 3.3V (Pin 1).
    - PCA9685 V+ (screw terminal): Connect to external 5V-6V battery/BEC.
    - NEVER connect 5V-6V to the PCA9685 VCC pin (it can back-feed the Pi 3.3V rail).
 
-4. PHASE STAGGERING:
-   - In quadbot/hal.py, phase staggering is ENABLED by default. This spreads
-     the rising edge of PWM pulses across the 20ms frame so all 12 motors
-     never draw initial inrush on the exact same microsecond tick.
-
 5. SOLDER JUMPERS:
    - Left PCA9685: 0x40 (default, no solder jumpers).
    - Right PCA9685: 0x50 (bridge A4 pads).
-   - If you bridged A0 instead, the address is 0x41. Edit config/robot.yaml accordingly.
 """)
     print("=" * 65)
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Quadbot Hardware Diagnostic Tool")
+    ap = argparse.ArgumentParser(description="Quadbot Hardware Diagnostic & Gait Testing Tool")
     ap.add_argument("--config", default=str(ROOT / "config" / "robot.yaml"))
     ap.add_argument("--scan", action="store_true", help="Scan I2C bus for 0x40 and 0x50")
-    ap.add_argument("--test-servo", help="Test a single servo (e.g. FL_coxa)")
-    ap.add_argument("--test-leg", help="Test a single leg (FL, FR, RL, RR)")
+    ap.add_argument("--test-servo", help="Test a single servo jog (e.g. FL_coxa)")
+    ap.add_argument("--test-leg", help="Test a single leg jog (FL, FR, RL, RR)")
+    ap.add_argument("--gait-servo", help="Run crawl gait on a SINGLE SERVO ONLY (e.g. FL_femur)")
+    ap.add_argument("--gait-leg", help="Run crawl gait on a SINGLE LEG ONLY (FL, FR, RL, RR)")
+    ap.add_argument("--gait-board", help="Run crawl gait on ONE BOARD ONLY (left or right)")
+    ap.add_argument("--stand-leg", help="Hold stand pose on ONE LEG ONLY (FL, FR, RL, RR)")
     ap.add_argument("--all-1500", action="store_true", help="Soft-center all servos to 1500 us")
-    ap.add_argument("--stand", action="store_true", help="Hold stand pose")
-    ap.add_argument("--crawl", action="store_true", help="Run crawl forward gait test")
-    ap.add_argument("--turn", action="store_true", help="Run turn in place gait test")
+    ap.add_argument("--stand", action="store_true", help="Hold stand pose on all legs")
+    ap.add_argument("--crawl", action="store_true", help="Run crawl forward gait test on all legs")
+    ap.add_argument("--turn", action="store_true", help="Run turn in place gait test on all legs")
     ap.add_argument("--release", action="store_true", help="Release all servos")
     ap.add_argument("--jitter-guide", action="store_true", help="Print jitter troubleshooting guide")
     args = ap.parse_args()
@@ -292,7 +369,6 @@ def main():
         print_i2c_report(found)
         return
 
-    # Initialize driver
     try:
         driver = make_driver(cfg)
     except Exception as e:
@@ -305,6 +381,29 @@ def main():
         if args.release:
             driver.release_all()
             print("All servos released.")
+        elif args.gait_servo:
+            if args.gait_servo in servos:
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=args.gait_servo)
+            else:
+                print(f"Unknown servo '{args.gait_servo}'. Valid: {list(servos.keys())}")
+        elif args.gait_leg:
+            leg = args.gait_leg.upper()
+            if leg in ("FL", "FR", "RL", "RR"):
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=leg)
+            else:
+                print(f"Invalid leg '{args.gait_leg}'. Valid: FL, FR, RL, RR")
+        elif args.gait_board:
+            b = args.gait_board.lower()
+            if b in ("left", "right"):
+                run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0, target=b)
+            else:
+                print(f"Invalid board '{args.gait_board}'. Valid: left, right")
+        elif args.stand_leg:
+            leg = args.stand_leg.upper()
+            if leg in ("FL", "FR", "RL", "RR"):
+                test_stand_pose(driver, cfg, servos, duration_s=4.0, target=leg)
+            else:
+                print(f"Invalid leg '{args.stand_leg}'. Valid: FL, FR, RL, RR")
         elif args.test_servo:
             if args.test_servo in servos:
                 test_single_servo(driver, servos[args.test_servo])
@@ -320,15 +419,11 @@ def main():
             soft_center_all(driver, servos)
         elif args.stand:
             test_stand_pose(driver, cfg, servos)
-            driver.release_all()
         elif args.crawl:
             run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.6, 0.0, 0.0), duration_s=5.0)
-            driver.release_all()
         elif args.turn:
             run_gait_test(driver, cfg, servos, mode="crawl", cmd=(0.0, 0.0, 0.8), duration_s=5.0)
-            driver.release_all()
         else:
-            # Interactive menu
             interactive_menu(cfg, driver, servos)
     finally:
         driver.close()
