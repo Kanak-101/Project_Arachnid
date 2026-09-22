@@ -40,17 +40,22 @@ class MockDriver(ServoDriver):
 
 
 class PCA9685Board:
-    MODE1, PRESCALE, LED0 = 0x00, 0xFE, 0x06
-    ALL_LED_ON_L = 0xFA
+    MODE1, MODE2, PRESCALE, LED0 = 0x00, 0x01, 0xFE, 0x06
+    ALL_LED_ON_L, ALL_LED_OFF_H = 0xFA, 0xFD
 
-    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000, stagger=True):
+    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000, stagger=False):
         self.bus, self.addr, self.freq, self.stagger = bus_obj, address, freq_hz, stagger
         prescale = int(round(osc_hz / (4096 * freq_hz))) - 1
+        self._write_byte(self.MODE1, 0x00)      # wake
+        time.sleep(0.005)
         self._write_byte(self.MODE1, 0x10)      # sleep so we can set the prescaler
+        time.sleep(0.005)
         self._write_byte(self.PRESCALE, prescale)
         self._write_byte(self.MODE1, 0x20)      # wake, auto-increment
         time.sleep(0.005)
-        self._write_byte(self.MODE1, 0xA0)      # restart
+        self._write_byte(self.MODE2, 0x04)      # totem-pole / push-pull output (required for servos)
+        self._write_byte(self.ALL_LED_OFF_H, 0x00) # clear global ALL_LED_OFF bit (unlatches chip)
+        self._write_byte(0xFB, 0x00)            # clear global ALL_LED_ON bit
         self.release_all()
 
     def _write_byte(self, reg, val):
@@ -83,7 +88,7 @@ class PCA9685Board:
             on_tick, off_tick = 0, ticks
         self._write_block(
             self.LED0 + 4 * channel,
-            [on_tick & 0xFF, on_tick >> 8, off_tick & 0xFF, off_tick >> 8]
+            [on_tick & 0xFF, (on_tick >> 8) & 0x0F, off_tick & 0xFF, (off_tick >> 8) & 0x0F]
         )
 
     def release(self, channel):
@@ -117,7 +122,7 @@ class PCA9685Driver(ServoDriver):
             b_addr = b_cfg.get("address", address)
             b_freq = b_cfg.get("freq_hz", freq_hz)
             b_osc = b_cfg.get("osc_hz", osc_hz)
-            b_stagger = b_cfg.get("stagger", True)
+            b_stagger = b_cfg.get("stagger", False)
 
             if bus_obj is not None:
                 cur_bus = bus_obj.get(name, bus_obj) if isinstance(bus_obj, dict) else bus_obj
@@ -161,7 +166,7 @@ class PCA9685Driver(ServoDriver):
 def make_driver(cfg):
     if cfg.get("driver", "mock") == "pca9685":
         p = cfg.get("pca9685", {})
-        stagger = p.get("stagger", True)
+        stagger = p.get("stagger", False)
         if "boards" in p:
             for b in p["boards"].values():
                 if "stagger" not in b:

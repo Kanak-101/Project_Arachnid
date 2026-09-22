@@ -54,12 +54,14 @@ def print_i2c_report(found):
     if not found:
         print("[!] No I2C devices responded on bus 1.")
         print("    Troubleshooting steps:")
-        print("    1. Enable I2C: sudo raspi-config -> Interface Options -> I2C -> Yes")
-        print("    2. Check Pi pin 1 (3.3V) -> PCA9685 VCC (both boards)")
-        print("    3. Check Pi pin 6 (GND) -> PCA9685 GND (both boards)")
-        print("    4. Check Pi pin 3 (SDA) -> PCA9685 SDA (both boards)")
-        print("    5. Check Pi pin 5 (SCL) -> PCA9685 SCL (both boards)")
-        print("    6. Verify I2C bus permissions: sudo usermod -aG i2c $USER")
+        print("    1. ADS1115 Level Shifter: If recently wired, disconnect its SDA & SCL")
+        print("       wires from the Pi. A miswired level shifter pulls the entire bus LOW.")
+        print("    2. Enable I2C: sudo raspi-config -> Interface Options -> I2C -> Yes")
+        print("    3. Check Pi pin 1 (3.3V) -> PCA9685 VCC (both boards)")
+        print("    4. Check Pi pin 6 (GND) -> PCA9685 GND (both boards)")
+        print("    5. Check Pi pin 3 (SDA) -> PCA9685 SDA (both boards)")
+        print("    6. Check Pi pin 5 (SCL) -> PCA9685 SCL (both boards)")
+        print("    7. Check Servo V+ power terminal (2S battery / UBEC switch).")
         return False
 
     print(f"Detected I2C addresses on /dev/i2c-1: {[hex(a) for a in found]}")
@@ -70,6 +72,22 @@ def print_i2c_report(found):
     print(f"  * Left Board  (0x40): {'[OK] Detected' if left_ok else '[FAIL] Missing!'}")
     print(f"  * Right Board (0x50): {'[OK] Detected' if right_ok else '[FAIL] Missing! (Verify A4 solder jumper)'}")
     print(f"  * ADS1115 ADC (0x48): {'[OK] Detected (2S Battery monitor active)' if ads_ok else '[--] Not detected (Battery monitor optional)'}")
+
+    # Unlock PCA9685 boards in case ALL_LED_OFF bit was latched
+    try:
+        from smbus2 import SMBus
+        with SMBus(1) as bus:
+            for addr in (0x40, 0x50):
+                if addr in found:
+                    try:
+                        bus.write_byte_data(addr, 0x00, 0x20)  # wake + auto-inc
+                        bus.write_byte_data(addr, 0x01, 0x04)  # totem-pole push-pull
+                        bus.write_byte_data(addr, 0xFD, 0x00)  # clear ALL_LED_OFF
+                        bus.write_byte_data(addr, 0xFB, 0x00)  # clear ALL_LED_ON
+                    except Exception:
+                        pass
+    except Exception:
+        pass
 
     if not left_ok or not right_ok:
         print("\n[!] WARNING: Both boards must be detected for normal operation.")

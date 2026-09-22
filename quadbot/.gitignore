@@ -8,6 +8,7 @@ __pycache__/
 # Testing & Temp
 .pytest_cache/
 scratch_tmp/
+tmp_pytest/
 *.bak
 
 # Environment / IDE

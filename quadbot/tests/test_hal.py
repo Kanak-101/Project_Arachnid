@@ -16,6 +16,8 @@ def test_pca9685_init_sets_50hz_prescale():
     bus = FakeBus()
     PCA9685Driver(bus_obj=bus)
     assert (0x40, 0xFE, 121) in bus.byte          # 25 MHz / (4096 * 50) - 1
+    assert (0x40, 0x01, 0x04) in bus.byte         # MODE2 totem-pole push-pull
+    assert (0x40, 0xFD, 0x00) in bus.byte         # clear ALL_LED_OFF_H
 
 
 def test_pulse_to_ticks():
