@@ -53,7 +53,8 @@ class GaitEngine:
         for leg, geo in self.legs.items():
             side = geo["side"]
             hx, hy = geo["hip_xy"]
-            rx, ry = hx + 0.0, hy + side * self.reach           # nominal foot in body frame
+            gamma = math.radians(geo.get("gamma", 90 if side == 1 else -90))
+            rx, ry = hx + self.reach * math.cos(gamma), hy + self.reach * math.sin(gamma)           # nominal foot in body frame
             # foot displacement over one stance, in the body frame (body moves +D, foot moves -D)
             dx = -vx * step_len + psi * ry
             dy = -vy * step_len - psi * rx
@@ -69,6 +70,10 @@ class GaitEngine:
                 if lift > 1.0:
                     self.swing.append(leg)
             ox, oy = dx * off, dy * off
-            # body-frame offset -> leg frame (x outward, y forward)
-            feet[leg] = (self.reach + side * oy, ox, -self.height + lift)
+            # body-frame offset -> leg frame (x outward along gamma, y forward perpendicular to gamma)
+            vx, vy = self.reach * math.cos(gamma) + ox, self.reach * math.sin(gamma) + oy
+            perp = gamma - math.radians(90 * side)
+            leg_x = vx * math.cos(gamma) + vy * math.sin(gamma)
+            leg_y = vx * math.cos(perp) + vy * math.sin(perp)
+            feet[leg] = (leg_x, leg_y, -self.height + lift)
         return feet
