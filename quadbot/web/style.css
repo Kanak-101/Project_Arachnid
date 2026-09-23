@@ -179,4 +179,46 @@ input[type=number] { width: 84px; min-height: 36px; padding: 0 6px; border: 1.5p
 .battery-badge.bat-crit { background: #a81d1d; color: #fff; border-color: #ff6b6b; font-weight: 700; animation: batPulse 1.2s infinite; }
 @keyframes batPulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
+/* ---------- gamepad section ---------- */
+.gamepad-panel { border-color: var(--steel); background: #fdfefe; }
+.gamepad-status { font-weight: 600; border-color: var(--line); color: var(--ink2); }
+.gamepad-status.connected { background: #d4edda; color: #155724; border-color: #28a745; }
+.gamepad-details { margin-top: 10px; }
+.gamepad-info-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #eef2f3; border-radius: 6px; font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; }
+.gamepad-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: start; }
+.pad-sticks-row { display: flex; gap: 16px; justify-content: center; }
+.pad-stick-box { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pad-label { font-size: 0.78rem; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.03em; }
+.pad-stick { width: 84px; height: 84px; border-radius: 50%; border: 2px solid var(--ink); background: radial-gradient(circle, transparent 0 24px, rgba(20,34,43,.10) 25px 26px, transparent 27px), #eef2f3; position: relative; }
+.pad-stick i { position: absolute; left: 50%; top: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; background: var(--steel); border: 2px solid var(--steel-d); pointer-events: none; transition: transform 0.04s ease-out; }
+.pad-stick-box small { font-size: 0.72rem; color: var(--ink2); font-family: monospace; }
+.pad-btn-cluster { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.abxy-grid { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 6px; justify-content: center; }
+.pad-btn-item { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--panel); user-select: none; transition: all 0.08s ease; }
+.pad-btn-item b { font-size: 0.95rem; line-height: 1; }
+.pad-btn-item span { font-size: 0.62rem; color: var(--ink2); line-height: 1; margin-top: 1px; }
+.btn-y { grid-column: 2; grid-row: 1; }
+.btn-y b { color: #d97706; }
+.btn-x { grid-column: 1; grid-row: 2; }
+.btn-x b { color: #2563eb; }
+.btn-b { grid-column: 3; grid-row: 2; }
+.btn-b b { color: #dc2626; }
+.btn-a { grid-column: 2; grid-row: 3; }
+.btn-a b { color: #16a34a; }
+.pad-btn-item.active { background: var(--ink); color: #fff; transform: scale(0.92); box-shadow: 0 0 6px rgba(0,0,0,0.3); }
+.pad-btn-item.active b { color: #fff; }
+.pad-btn-item.active span { color: #cfe0e8; }
+.pad-aux-box { display: flex; flex-direction: column; gap: 8px; }
+.pad-aux-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pad-pill { padding: 6px 10px; border-radius: 6px; border: 1.5px solid var(--line); background: #fff; display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; user-select: none; transition: all 0.08s ease; }
+.pad-pill span { color: var(--ink2); font-weight: 500; }
+.pad-pill b { font-weight: 700; }
+.pad-pill.active { background: var(--steel); color: #fff; border-color: var(--steel-d); }
+.pad-pill.active span { color: #cfe0e8; }
+.pad-pill.stop { border-color: #f5c6cb; }
+.pad-pill.stop b { color: var(--stop); }
+.pad-pill.stop.active { background: var(--stop); color: #fff; border-color: #721c24; }
+.pad-pill.stop.active b, .pad-pill.stop.active span { color: #fff; }
+
+
 
