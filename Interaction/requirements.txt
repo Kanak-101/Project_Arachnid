@@ -1,0 +1,15 @@
+# Base laptop runtime (OpenCV is required)
+numpy>=1.26
+opencv-python>=4.9
+PyYAML>=6.0
+
+# Optional gesture & vision backends
+mediapipe>=0.10.20
+ultralytics>=8.3
+
+# Optional hardware transports
+pyserial>=3.5
+rplidar-roboticia>=0.9.5
+
+# Development & automated testing
+pytest>=8.0
