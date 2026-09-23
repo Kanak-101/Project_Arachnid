@@ -123,6 +123,15 @@ def test_calibration_fields():
     assert r.cal_version > 1
 
 
+def test_scale_calibration_at_center_is_rejected():
+    r, _ = make()
+    s = r.servos["FL_femur"]
+    before = s.us_per_deg
+    r.cal("FL_femur", "scale_from", 45)
+    assert s.us_per_deg == before
+    assert "Move the servo away" in r.notice
+
+
 def test_sweep_visits_both_limits_and_finishes():
     r, d = make()
     r.arm(True)

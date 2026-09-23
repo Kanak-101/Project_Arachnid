@@ -23,7 +23,11 @@ class ServoCal:
     @classmethod
     def from_dict(cls, d):
         fields = cls.__dataclass_fields__
-        return cls(**{k: v for k, v in d.items() if k in fields})
+        values = {k: v for k, v in d.items() if k in fields}
+        if float(values.get("us_per_deg", 0.0)) <= 0.0:
+            span = abs(float(values.get("us_max", 2500.0)) - float(values.get("us_min", 500.0)))
+            values["us_per_deg"] = max(span / 180.0, 0.01)
+        return cls(**values)
 
     def to_dict(self):
         return asdict(self)

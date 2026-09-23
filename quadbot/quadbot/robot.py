@@ -190,8 +190,12 @@ class Robot:
             s.invert = bool(value)
         elif field == "scale_from":       # jog to a measured angle, enter it -> derive us/deg
             ang = abs(float(value))
-            if ang > 1:
-                s.us_per_deg = round(abs(us - s.us_center) / ang, 3)
+            pulse_delta = abs(us - s.us_center)
+            if ang > 1 and pulse_delta >= 1:
+                s.us_per_deg = round(pulse_delta / ang, 3)
+            elif ang > 1:
+                self.notice = "Move the servo away from centre before calibrating scale"
+                return
         elif field in CAL_FIELDS and value is not None:
             setattr(s, field, type(getattr(s, field))(value))
         else:

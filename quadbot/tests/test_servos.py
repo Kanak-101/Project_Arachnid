@@ -15,6 +15,14 @@ def test_deg_us_round_trip_and_invert():
     assert s.deg_to_us(10) == 1400 and s.us_to_deg(1400) == 10
 
 
+def test_zero_scale_loaded_from_saved_config_gets_safe_fallback():
+    s = ServoCal.from_dict({
+        "id": "FL_coxa", "leg": "FL", "joint": "coxa", "model": "MG958", "channel": 0,
+        "us_min": 500, "us_max": 2500, "us_center": 1500, "us_per_deg": 0,
+    })
+    assert s.us_per_deg == 2000 / 180
+
+
 def test_pulse_is_clamped_to_hard_limits():
     s = servo(us_min=600, us_max=2400)
     assert s.deg_to_us(500) == 2400 and s.deg_to_us(-500) == 600
