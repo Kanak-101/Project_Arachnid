@@ -1,5 +1,3 @@
-  if (willArm && st && ['stand', 'crawl', 'trot', 'pace', 'bound', 'pronk', 'wave'].includes(st.mode)) {
-  if (['stand', 'crawl', 'trot', 'pace', 'bound', 'pronk', 'wave'].includes(mode)) {
 'use strict';
 /* quadbot bench console. Plain JavaScript, no external requests, so it works on a Pi hotspot with no internet. */
 
