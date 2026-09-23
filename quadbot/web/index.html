@@ -113,6 +113,60 @@
     <p class="hint">Arm servos first. If your power supply cannot power 12 servos at once, pick <b>Leg FL (3)</b> or a <b>Single joint</b> above to test gaits safely with low current!</p>
   </div>
 
+  <!-- Gamepad Controller Section -->
+  <div class="panel gamepad-panel" id="gamepadSection">
+    <div class="panel-header-row">
+      <h2>🎮 Gamepad Controller</h2>
+      <span id="gamepadStatus" class="chip gamepad-status">No Gamepad Detected</span>
+    </div>
+    
+    <div id="gamepadDetails" class="gamepad-details" hidden>
+      <div class="gamepad-info-bar">
+        <span id="gamepadName">Controller</span>
+        <span id="gamepadMapping" class="badge">Standard</span>
+      </div>
+      
+      <div class="gamepad-layout">
+        <!-- Sticks visualizer -->
+        <div class="pad-sticks-row">
+          <div class="pad-stick-box">
+            <span class="pad-label">Left Stick: Move</span>
+            <div class="stick pad-stick" id="padStickL"><i id="padKnobL"></i></div>
+            <small id="padValL">vx: 0.00 | vy: 0.00</small>
+          </div>
+          <div class="pad-stick-box">
+            <span class="pad-label">Right Stick: Turn</span>
+            <div class="stick pad-stick" id="padStickR"><i id="padKnobR"></i></div>
+            <small id="padValR">wz: 0.00</small>
+          </div>
+        </div>
+
+        <!-- ABXY Actions cluster -->
+        <div class="pad-btn-cluster">
+          <span class="pad-label">Poses & Gaits</span>
+          <div class="abxy-grid">
+            <div class="pad-btn-item btn-y" id="btnPadY"><b>Y</b><span>Trot</span></div>
+            <div class="pad-btn-item btn-x" id="btnPadX"><b>X</b><span>Crawl</span></div>
+            <div class="pad-btn-item btn-b" id="btnPadB"><b>B</b><span>Rest</span></div>
+            <div class="pad-btn-item btn-a" id="btnPadA"><b>A</b><span>Stand</span></div>
+          </div>
+        </div>
+
+        <!-- Triggers, Bumpers & System -->
+        <div class="pad-aux-box">
+          <span class="pad-label">Triggers & System</span>
+          <div class="pad-aux-grid">
+            <div class="pad-pill" id="btnPadStart"><span>Start</span><b>Arm</b></div>
+            <div class="pad-pill" id="btnPadSelect"><span>Select</span><b>Reset</b></div>
+            <div class="pad-pill stop" id="btnPadLB"><span>LB</span><b>E-Stop</b></div>
+            <div class="pad-pill stop" id="btnPadRB"><span>RB</span><b>E-Stop</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p id="gamepadPrompt" class="hint">Connect your USB or Bluetooth gamepad to this laptop and press any button to begin controlling the robot.</p>
+  </div>
+
   <div class="panel sticks">
     <div class="stick-wrap"><div class="stick" id="stickMove"><i></i></div><span>Move (X / Y)</span></div>
     <div class="stick-wrap"><div class="stick" id="stickTurn"><i></i></div><span>Turn (Yaw)</span></div>

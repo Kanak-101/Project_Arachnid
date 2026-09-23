@@ -221,24 +221,178 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => keys.clear());
 
-// gamepad
+// Gamepad Controller Integration
 let prevBtn = [];
+let activeGamepadIndex = null;
+
+window.addEventListener('gamepadconnected', (e) => {
+  activeGamepadIndex = e.gamepad.index;
+  showNotice(`🎮 Gamepad connected: ${e.gamepad.id.split('(')[0]}`);
+});
+
+window.addEventListener('gamepaddisconnected', (e) => {
+  if (activeGamepadIndex === e.gamepad.index) {
+    activeGamepadIndex = null;
+    showNotice('Gamepad disconnected', true);
+  }
+});
+
+function updateGamepadUI(pad, vx, vy, wz, b, rawAx) {
+  const gpSection = $('#gamepadSection');
+  const gpStatus = $('#gamepadStatus');
+  const gpDetails = $('#gamepadDetails');
+  const gpPrompt = $('#gamepadPrompt');
+  if (!gpSection) return;
+
+  if (!pad) {
+    gpStatus.textContent = 'No Gamepad Detected';
+    gpStatus.classList.remove('connected');
+    gpDetails.hidden = true;
+    gpPrompt.hidden = false;
+    return;
+  }
+
+  // Active gamepad info
+  gpStatus.textContent = `🟢 Connected: ${pad.id.split('(')[0].trim() || 'Controller'}`;
+  gpStatus.classList.add('connected');
+  gpDetails.hidden = false;
+  gpPrompt.hidden = true;
+
+  const gpName = $('#gamepadName');
+  if (gpName) gpName.textContent = pad.id.slice(0, 42);
+  const gpMap = $('#gamepadMapping');
+  if (gpMap) gpMap.textContent = pad.mapping ? `${pad.mapping} mapping` : 'standard';
+
+  // Stick visualizers
+  const kL = $('#padKnobL'), kR = $('#padKnobR');
+  if (kL) kL.style.transform = `translate(${rawAx(0) * 26}px, ${rawAx(1) * 26}px)`;
+  if (kR) kR.style.transform = `translate(${rawAx(2) * 26}px, ${rawAx(3) * 26}px)`;
+
+  const vL = $('#padValL'), vR = $('#padValR');
+  if (vL) vL.textContent = `vx: ${vx.toFixed(2)} | vy: ${vy.toFixed(2)}`;
+  if (vR) vR.textContent = `wz: ${wz.toFixed(2)}`;
+
+  // Button indicators
+  const btnMap = {
+    0: '#btnPadA',
+    1: '#btnPadB',
+    2: '#btnPadX',
+    3: '#btnPadY',
+    4: '#btnPadLB',
+    5: '#btnPadRB',
+    8: '#btnPadSelect',
+    9: '#btnPadStart'
+  };
+  for (const [idx, sel] of Object.entries(btnMap)) {
+    const el = $(sel);
+    if (el) el.classList.toggle('active', !!b[+idx]);
+  }
+}
+
 function readPad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let pad = null;
   for (const p of pads) {
-    if (!p || !p.connected) continue;
-    const dz = 0.14, ax = (i) => { const v = p.axes[i] || 0; return Math.abs(v) < dz ? 0 : v; };
-    const b = p.buttons.map((x) => x.pressed);
-    const edge = (i) => b[i] && !prevBtn[i];
-    if (edge(0)) send({ t: 'mode', mode: 'stand' });
-    if (edge(1)) send({ t: 'mode', mode: 'rest' });
-    if (edge(2)) send({ t: 'mode', mode: 'crawl' });
-    if (edge(3)) send({ t: 'mode', mode: 'trot' });
-    if (edge(4) || edge(5) || edge(8)) send({ t: 'estop' });
-    prevBtn = b;
-    return { vx: -ax(1), vy: -ax(0), wz: -ax(2) };
+    if (p && p.connected) {
+      pad = p;
+      break;
+    }
   }
-  return null;
+
+  if (!pad) {
+    updateGamepadUI(null, 0, 0, 0, [], () => 0);
+    prevBtn = [];
+    return null;
+  }
+
+  // Deadzone filter with smooth linear scaling
+  const dz = 0.12;
+  const rawAx = (i) => pad.axes[i] || 0;
+  const ax = (i) => {
+    const v = rawAx(i);
+    if (Math.abs(v) < dz) return 0;
+    const sign = Math.sign(v);
+    return sign * ((Math.abs(v) - dz) / (1 - dz));
+  };
+
+  // Button readings (handles both boolean and GamepadButton objects)
+  const b = pad.buttons.map((x) => (typeof x === 'object' ? x.pressed : !!x));
+  const edge = (i) => b[i] && !prevBtn[i];
+
+  // Helper to switch modes safely with auto-arm and servo-enable
+  const setModeFromPad = (targetMode, label) => {
+    if (!st || !st.armed) send({ t: 'arm', on: true });
+    send({ t: 'servo_enable_all', on: true });
+    send({ t: 'mode', mode: targetMode });
+    showNotice(`🎮 Gamepad: ${label}`);
+  };
+
+  // --- XYAB Button Mappings ---
+  // Button 0 (A): Stand Pose
+  if (edge(0)) {
+    setModeFromPad('stand', 'Stand Pose');
+  }
+  // Button 1 (B): Rest Pose
+  if (edge(1)) {
+    send({ t: 'mode', mode: 'rest' });
+    showNotice('🎮 Gamepad: Rest Pose');
+  }
+  // Button 2 (X): Crawl Walking Gait
+  if (edge(2)) {
+    setModeFromPad('crawl', 'Crawl Gait');
+  }
+  // Button 3 (Y): Trot Walking Gait
+  if (edge(3)) {
+    setModeFromPad('trot', 'Trot Gait');
+  }
+
+  // --- Triggers & Auxiliary Buttons ---
+  // Button 9 (Start): Toggle Arm / Enable All
+  if (edge(9)) {
+    const willArm = !(st && st.armed);
+    send({ t: 'arm', on: willArm });
+    if (willArm) send({ t: 'servo_enable_all', on: true });
+    showNotice(willArm ? '🎮 Gamepad: Servos Armed' : '🎮 Gamepad: Servos Released');
+  }
+  // Button 8 (Select / Back): Reset E-Stop or Stop Motion
+  if (edge(8)) {
+    if (st && st.estop) {
+      send({ t: 'reset_estop' });
+      showNotice('🎮 Gamepad: E-Stop Reset');
+    } else {
+      send({ t: 'quick_test', action: 'stop' });
+      showNotice('🎮 Gamepad: Motion Stopped');
+    }
+  }
+  // Buttons 4 & 5 (LB / RB): Immediate E-Stop
+  if (edge(4) || edge(5)) {
+    send({ t: 'estop' });
+    showNotice('🚨 Gamepad: E-STOP Triggered!', true);
+  }
+
+  // --- Left Stick: Forward / Backward (Axis 1) and Strafe Left / Right (Axis 0) ---
+  // Up is -1 -> -(-1) = +1 (Forward), Down is +1 -> -(+1) = -1 (Backward)
+  let vx = -ax(1);
+  // Left is -1 -> -(-1) = +1 (Strafe Left), Right is +1 -> -(+1) = -1 (Strafe Right)
+  let vy = -ax(0);
+
+  // --- Right Stick: Yaw Turn (Axis 2, with fallback to Axis 3 if non-standard) ---
+  const turnAxis = pad.axes.length > 2 ? 2 : 0;
+  // Left is -1 -> -(-1) = +1 (Turn Left / CCW), Right is +1 -> -(+1) = -1 (Turn Right / CW)
+  let wz = -ax(turnAxis);
+
+  // --- D-Pad Directional Controls (Buttons 12..15) ---
+  if (b[12]) vx = 0.65;   // D-pad Up: Forward
+  if (b[13]) vx = -0.65;  // D-pad Down: Backward
+  if (b[14]) wz = 0.8;    // D-pad Left: Turn Left
+  if (b[15]) wz = -0.8;   // D-pad Right: Turn Right
+
+  prevBtn = b;
+
+  // Update live visual dashboard indicators
+  updateGamepadUI(pad, vx, vy, wz, b, rawAx);
+
+  return { vx, vy, wz };
 }
 
 let dpadCmd = null;
