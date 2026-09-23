@@ -44,14 +44,18 @@ class GaitEngine:
 
         gait = GAITS.get(mode, GAITS["crawl"])
         duty = p[gait["duty_key"]]
+        stride_scale = float(p.get("stride_scale", 1.0))
+        lift_scale = float(p.get("lift_scale", 1.0))
         step_speed = float(p.get("step_speed", 1.0))
         coxa_gain = float(p.get("coxa_gain", 1.0))
         if mag > 0.02:
             self.phase = (self.phase + dt * p["freq_hz"] * p["speed_scale"] * step_speed * freq_scale) % 1.0
 
         step_len, step_h = p["step_len"], p["step_height"]
-        step_len *= step_speed
-        step_h *= step_speed
+        step_len *= stride_scale * step_speed
+        step_h *= lift_scale * step_speed
+        step_len = max(0.0, min(step_len, 80.0))
+        step_h = max(0.0, min(step_h, 35.0))
         psi = wz * math.radians(p["yaw_step_deg"]) * p.get("turn_scale", 1.0)
         feet, self.swing = {}, []
         for leg, geo in self.legs.items():

@@ -164,14 +164,16 @@ function buildGaitSliders() {
   const host = $('#gaitSliders'); host.innerHTML = '';
   const g = cal.gait;
   [
-    ['step_speed', 'Step speed', 0.4, 2.0, 0.05, '×'],
-    ['coxa_gain', 'Coxa swing', 0.5, 2.0, 0.05, '×'],
+    ['stride_scale', 'Stride scale', 0.2, 2.0, 0.05, '×'],
+    ['lift_scale', 'Lift scale', 0.2, 2.0, 0.05, '×'],
+    ['step_speed', 'Step speed', 0.3, 2.0, 0.05, '×'],
+    ['coxa_gain', 'Coxa swing', 0.3, 2.0, 0.05, '×'],
     ['speed_scale', 'Drive scale', 0.2, 1.5, 0.05, '×'],
-    ['step_len', 'Step length', 10, 70, 1, 'mm'],
-    ['step_height', 'Step height', 10, 50, 1, 'mm'],
-    ['freq_hz', 'Step rate', 0.2, 2.0, 0.05, 'Hz'],
-    ['height_stand', 'Body height', 50, 130, 1, 'mm'],
-    ['yaw_step_deg', 'Turn per step', 5, 25, 1, '°'],
+    ['step_len', 'Step length', 5, 50, 1, 'mm'],
+    ['step_height', 'Step height', 5, 30, 1, 'mm'],
+    ['freq_hz', 'Step rate', 0.2, 1.5, 0.05, 'Hz'],
+    ['height_stand', 'Body height', 50, 110, 1, 'mm'],
+    ['yaw_step_deg', 'Turn per step', 3, 20, 1, '°'],
   ].forEach(([key, label, min, max, step, unit]) =>
     mkSlider(host, { label, min, max, step, unit, value: g[key], onInput: (v) => sendThrottled('p_' + key, { t: 'params', [key]: v }) }));
 }
