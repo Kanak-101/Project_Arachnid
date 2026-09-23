@@ -351,23 +351,34 @@ function drawChassis() {
 
   LEGS.forEach((leg) => {
     const geo = cal.legs[leg], side = geo.side, [hpx, hpy] = geo.hip_xy;
-    const d = (j) => st.live[`${leg}_${j}`].deg;
+    const d = (j) => (st.live[`${leg}_${j}`] ? st.live[`${leg}_${j}`].deg : 0.0);
     const th1 = rad(d('coxa')), a = rad(d('femur')), b = rad(d('tibia'));
-    const toBody = (lx, ly) => [hpx + ly, hpy + side * lx];
-    const cxE = [g.coxa * Math.cos(th1), g.coxa * Math.sin(th1)];
-    const rk = g.coxa + g.femur * Math.cos(a), knee = [rk * Math.cos(th1), rk * Math.sin(th1)];
-    const f = fk(g, th1, a, b);
-    const pts = [[0, 0], cxE, knee, [f[0], f[1]]].map(([x, y]) => P(...toBody(x, y)));
+    const gammaDeg = geo.gamma !== undefined ? geo.gamma : (side === 1 ? 45 : -45);
+    const gamma = rad(gammaDeg);
+    const ang = gamma - side * th1;
+
+    const rCoxa = g.coxa;
+    const rKnee = g.coxa + g.femur * Math.cos(a);
+    const gam = a - Math.PI / 2 + b;
+    const rFoot = g.coxa + g.femur * Math.cos(a) + g.tibia * Math.cos(gam);
+    const zFoot = g.femur * Math.sin(a) + g.tibia * Math.sin(gam);
+
+    const pts = [
+      P(hpx, hpy),
+      P(hpx + rCoxa * Math.cos(ang), hpy + rCoxa * Math.sin(ang)),
+      P(hpx + rKnee * Math.cos(ang), hpy + rKnee * Math.sin(ang)),
+      P(hpx + rFoot * Math.cos(ang), hpy + rFoot * Math.sin(ang))
+    ];
     const sel = leg === selLeg;
     ctx.strokeStyle = sel ? '#276b8c' : '#4a5c66'; ctx.lineWidth = sel ? 5 : 3; ctx.lineJoin = 'round';
     ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
     JOINTS.forEach((j, i) => {                                        // joint dots use the servo model colour, like the wiring sketch
       const s = cal.servos.find((q) => q.id === `${leg}_${j}`);
-      ctx.fillStyle = MODEL_COLOR[s.model] || '#888'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.fillStyle = (s && MODEL_COLOR[s.model]) || '#888'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(pts[i][0], pts[i][1], sel ? 8 : 6, 0, 7); ctx.fill(); ctx.stroke();
     });
     ctx.fillStyle = '#14222b'; ctx.fillRect(pts[3][0] - 3, pts[3][1] - 3, 6, 6);
-    if (sel) { ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(`foot z ${f[2].toFixed(0)} mm`, pts[3][0] + 8, pts[3][1] + 4); }
+    if (sel) { ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(`foot z ${zFoot.toFixed(0)} mm`, pts[3][0] + 8, pts[3][1] + 4); }
   });
 }
 $('#chassis').addEventListener('click', (e) => {

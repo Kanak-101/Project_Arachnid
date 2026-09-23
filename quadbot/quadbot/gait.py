@@ -71,9 +71,10 @@ class GaitEngine:
                     self.swing.append(leg)
             ox, oy = dx * off, dy * off
             # body-frame offset -> leg frame (x outward along gamma, y forward perpendicular to gamma)
-            vx, vy = self.reach * math.cos(gamma) + ox, self.reach * math.sin(gamma) + oy
+            foot_hx = self.reach * math.cos(gamma) + ox
+            foot_hy = self.reach * math.sin(gamma) + oy
             perp = gamma - math.radians(90 * side)
-            leg_x = vx * math.cos(gamma) + vy * math.sin(gamma)
-            leg_y = vx * math.cos(perp) + vy * math.sin(perp)
+            leg_x = foot_hx * math.cos(gamma) + foot_hy * math.sin(gamma)
+            leg_y = foot_hx * math.cos(perp) + foot_hy * math.sin(perp)
             feet[leg] = (leg_x, leg_y, -self.height + lift)
         return feet

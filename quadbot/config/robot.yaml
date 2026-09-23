@@ -55,10 +55,10 @@ geometry:
 # hip_xy: hip position in the body frame (x forward, y left), mm. UNVERIFIED.
 # side: +1 for left legs, -1 for right legs.
 legs:
-  FL: {hip_xy: [ 90,  60], side:  1}
-  FR: {hip_xy: [ 90, -60], side: -1}
-  RL: {hip_xy: [-90,  60], side:  1}
-  RR: {hip_xy: [-90, -60], side: -1}
+  FL: {hip_xy: [ 90,  60], side:  1, gamma: 45}
+  FR: {hip_xy: [ 90, -60], side: -1, gamma: -45}
+  RL: {hip_xy: [-90,  60], side:  1, gamma: 135}
+  RR: {hip_xy: [-90, -60], side: -1, gamma: -135}
 
 gait:
   height_stand: 90
