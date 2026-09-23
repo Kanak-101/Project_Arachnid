@@ -11,8 +11,10 @@ Circuit Setup:
 - ADS1115 Default Address: 0x48 (ADDR -> GND)
 """
 
+import threading
 import time
 import logging
+from .hal import get_i2c_lock
 
 log = logging.getLogger("quadbot.battery")
 
@@ -78,7 +80,16 @@ class ADS1115BatteryReader:
         self._bus = None
         self._filtered_v = None
         self._last_read_time = 0.0
-        self._cached_state = None
+        self._lock = get_i2c_lock(self.bus_num)
+        self._running = True
+        self._thread = None
+        self._cached_state = {
+            "voltage": 0.0,
+            "percent": 0.0,
+            "state": "initializing",
+            "cells": 2,
+            "present": False,
+        }
 
         try:
             try:
@@ -88,8 +99,22 @@ class ADS1115BatteryReader:
             self._bus = SMBus(self.bus_num)
             log.info("ADS1115 battery monitor initialized on /dev/i2c-%d at 0x%02X (ch %d)",
                      self.bus_num, self.address, self.channel)
+            self._thread = threading.Thread(target=self._worker, daemon=True)
+            self._thread.start()
         except Exception as e:
             log.warning("Could not open I2C bus for ADS1115 (%s). Battery monitor disabled.", e)
+
+    def _worker(self):
+        """Background thread that updates battery state asynchronously without stalling servo ticks."""
+        while self._running:
+            try:
+                self._update_state()
+            except Exception as e:
+                log.debug("Battery worker error: %s", e)
+            for _ in range(15):
+                if not self._running:
+                    break
+                time.sleep(0.1)
 
     def read_raw_voltage(self) -> float | None:
         """Triggers a single-shot conversion on ADS1115 and returns measured battery voltage."""
@@ -102,14 +127,16 @@ class ADS1115BatteryReader:
             cfg_msb = 0x80 | (mux << 4) | (0b001 << 1) | 1  # 0xC3 for ch 0
             cfg_lsb = (0b100 << 5) | 0x03                  # 0x83
 
-            # Write config register to start conversion
-            self._bus.write_i2c_block_data(self.address, self.REG_CONFIG, [cfg_msb, cfg_lsb])
+            # Write config register to start conversion under bus lock
+            with self._lock:
+                self._bus.write_i2c_block_data(self.address, self.REG_CONFIG, [cfg_msb, cfg_lsb])
 
-            # Wait for conversion to complete (128 SPS = ~8ms)
+            # Wait for conversion to complete without holding the bus lock
             time.sleep(0.010)
 
-            # Read 2-byte conversion result
-            data = self._bus.read_i2c_block_data(self.address, self.REG_CONV, 2)
+            # Read 2-byte conversion result under bus lock
+            with self._lock:
+                data = self._bus.read_i2c_block_data(self.address, self.REG_CONV, 2)
             raw = (data[0] << 8) | data[1]
             if raw > 32767:
                 raw -= 65536
@@ -123,29 +150,21 @@ class ADS1115BatteryReader:
             log.debug("ADS1115 read error: %s", e)
             return None
 
-    def read(self) -> dict:
-        """Returns battery telemetry dict with smoothing filter."""
-        now = time.monotonic()
-        # Rate-limit I2C queries to max 2 Hz
-        if now - self._last_read_time < 0.4 and self._cached_state:
-            return self._cached_state
-
+    def _update_state(self):
         raw_v = self.read_raw_voltage()
+        now = time.monotonic()
         self._last_read_time = now
 
         if raw_v is None or raw_v < 1.0:
-            # No battery detected or read error
-            state = {
+            self._cached_state = {
                 "voltage": 0.0,
                 "percent": 0.0,
                 "state": "disconnected",
                 "cells": 2,
                 "present": False,
             }
-            self._cached_state = state
-            return state
+            return self._cached_state
 
-        # Apply exponential moving average filter to smooth transient dips
         if self._filtered_v is None:
             self._filtered_v = raw_v
         else:
@@ -161,17 +180,23 @@ class ADS1115BatteryReader:
         else:
             health = "ok"
 
-        state = {
+        self._cached_state = {
             "voltage": v,
             "percent": pct,
             "state": health,
             "cells": 2,
             "present": True,
         }
-        self._cached_state = state
-        return state
+        return self._cached_state
+
+    def read(self) -> dict:
+        """Returns cached battery telemetry immediately (non-blocking)."""
+        if self._thread is None and self._bus:
+            return self._update_state()
+        return self._cached_state
 
     def close(self):
+        self._running = False
         if self._bus:
             try:
                 self._bus.close()

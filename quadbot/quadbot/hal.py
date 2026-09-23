@@ -3,7 +3,17 @@
 Everything above this file talks in microseconds of pulse width per channel, so the
 same code runs against a mock (laptop, tests) or a PCA9685 board (Raspberry Pi).
 """
+import threading
 import time
+
+_I2C_LOCKS = {}
+
+
+def get_i2c_lock(bus_num=1):
+    """Returns a shared reentrant lock for a given I2C bus number."""
+    if bus_num not in _I2C_LOCKS:
+        _I2C_LOCKS[bus_num] = threading.RLock()
+    return _I2C_LOCKS[bus_num]
 
 
 class ServoDriver:
@@ -43,8 +53,10 @@ class PCA9685Board:
     MODE1, MODE2, PRESCALE, LED0 = 0x00, 0x01, 0xFE, 0x06
     ALL_LED_ON_L, ALL_LED_OFF_H = 0xFA, 0xFD
 
-    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000, stagger=False):
+    def __init__(self, bus_obj, address=0x40, freq_hz=50, osc_hz=25_000_000, stagger=True, bus_num=1):
         self.bus, self.addr, self.freq, self.stagger = bus_obj, address, freq_hz, stagger
+        self.lock = get_i2c_lock(bus_num)
+        self._last_pulse = {}
         prescale = int(round(osc_hz / (4096 * freq_hz))) - 1
         self._write_byte(self.MODE1, 0x00)      # wake
         time.sleep(0.005)
@@ -59,26 +71,32 @@ class PCA9685Board:
         self.release_all()
 
     def _write_byte(self, reg, val):
-        for attempt in range(3):
-            try:
-                self.bus.write_byte_data(self.addr, reg, val)
-                return
-            except (OSError, IOError):
-                if attempt == 2:
-                    raise
-                time.sleep(0.002)
+        with self.lock:
+            for attempt in range(3):
+                try:
+                    self.bus.write_byte_data(self.addr, reg, val)
+                    return
+                except (OSError, IOError):
+                    if attempt == 2:
+                        raise
+                    time.sleep(0.002)
 
     def _write_block(self, reg, data):
-        for attempt in range(3):
-            try:
-                self.bus.write_i2c_block_data(self.addr, reg, data)
-                return
-            except (OSError, IOError):
-                if attempt == 2:
-                    raise
-                time.sleep(0.002)
+        with self.lock:
+            for attempt in range(3):
+                try:
+                    self.bus.write_i2c_block_data(self.addr, reg, data)
+                    return
+                except (OSError, IOError):
+                    if attempt == 2:
+                        raise
+                    time.sleep(0.002)
 
     def set_pulse(self, channel, us):
+        prev = self._last_pulse.get(channel)
+        if prev is not None and abs(prev - us) < 0.8:
+            return
+        self._last_pulse[channel] = us
         ticks = int(round(us * 4096 * self.freq / 1e6))
         ticks = max(0, min(4095, ticks))
         if self.stagger:
@@ -92,10 +110,12 @@ class PCA9685Board:
         )
 
     def release(self, channel):
+        self._last_pulse.pop(channel, None)
         # bit 4 of LEDn_OFF_H = "full off": the output stays low, so the servo is unpowered
         self._write_block(self.LED0 + 4 * channel, [0, 0, 0, 0x10])
 
     def release_all(self):
+        self._last_pulse.clear()
         for ch in range(16):
             self.release(ch)
 
@@ -122,7 +142,7 @@ class PCA9685Driver(ServoDriver):
             b_addr = b_cfg.get("address", address)
             b_freq = b_cfg.get("freq_hz", freq_hz)
             b_osc = b_cfg.get("osc_hz", osc_hz)
-            b_stagger = b_cfg.get("stagger", False)
+            b_stagger = b_cfg.get("stagger", True)
 
             if bus_obj is not None:
                 cur_bus = bus_obj.get(name, bus_obj) if isinstance(bus_obj, dict) else bus_obj
@@ -132,7 +152,7 @@ class PCA9685Driver(ServoDriver):
                     self._bus_cache[b_bus] = SMBus(b_bus)
                 cur_bus = self._bus_cache[b_bus]
 
-            self.boards[name] = PCA9685Board(cur_bus, b_addr, b_freq, b_osc, stagger=b_stagger)
+            self.boards[name] = PCA9685Board(cur_bus, b_addr, b_freq, b_osc, stagger=b_stagger, bus_num=b_bus)
 
     def _resolve_board(self, board):
         if board in self.boards:

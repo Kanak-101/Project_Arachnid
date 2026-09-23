@@ -259,6 +259,7 @@ function driveTick() {
     src = 'dpad';
   }
   vx = clamp1(vx); vy = clamp1(vy); wz = clamp1(wz);
+  if (Math.hypot(vx, vy) < 0.04 && Math.abs(wz) < 0.04) { vx = 0; vy = 0; wz = 0; }
   send({ t: 'drive', vx, vy, wz });               // sent every tick: the robot stops if these stop arriving
   $('#inputSrc').textContent = src;
   $('#cmdOut').textContent = `${vx.toFixed(2)} / ${vy.toFixed(2)} / ${wz.toFixed(2)}`;
@@ -470,9 +471,22 @@ $('#radar').addEventListener('click', (e) => {
 });
 
 /* ------------------------------------------------------------------ chrome */
-$('#arm').addEventListener('click', () => send({ t: 'arm', on: !(st && st.armed) }));
+$('#arm').addEventListener('click', () => {
+  const willArm = !(st && st.armed);
+  send({ t: 'arm', on: willArm });
+  if (willArm && st && ['stand', 'crawl', 'trot'].includes(st.mode)) {
+    send({ t: 'servo_enable_all', on: true });
+  }
+});
 $('#estop').addEventListener('click', () => { if (st && st.estop) send({ t: 'reset_estop' }); else send({ t: 'estop' }); });
-$$('#modeSeg button').forEach((b) => b.addEventListener('click', () => send({ t: 'mode', mode: b.dataset.mode })));
+$$('#modeSeg button').forEach((b) => b.addEventListener('click', () => {
+  const mode = b.dataset.mode;
+  if (!st || !st.armed) send({ t: 'arm', on: true });
+  if (['stand', 'crawl', 'trot'].includes(mode)) {
+    send({ t: 'servo_enable_all', on: true });
+  }
+  send({ t: 'mode', mode });
+}));
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   tab = b.dataset.tab;
   $$('.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));

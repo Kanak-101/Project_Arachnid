@@ -4,17 +4,20 @@
 
 driver: mock            # mock | pca9685   (use mock on a laptop, pca9685 on the Pi)
 pca9685:
+  stagger: true
   boards:
     left:
       bus: 1                # /dev/i2c-1 on the Pi 5
       address: 0x50         # PCA9685 board address 0x50 (A4 bridged)
       freq_hz: 50
       osc_hz: 25000000      # tune if measured pulse widths are consistently off
+      stagger: true
     right:
       bus: 1                # /dev/i2c-1 on the Pi 5
       address: 0x40         # default address (no jumpers bridged)
       freq_hz: 50
       osc_hz: 25000000
+      stagger: true
 
 lidar:
   driver: mock          # mock | rplidar
