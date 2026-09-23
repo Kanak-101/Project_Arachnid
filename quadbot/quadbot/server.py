@@ -9,6 +9,7 @@ on a network you trust (your own hotspot or router), and keep a hand near the e-
 import argparse
 import asyncio
 import contextlib
+import copy
 import json
 import logging
 import time
@@ -17,6 +18,7 @@ from pathlib import Path
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -30,9 +32,14 @@ log = logging.getLogger("quadbot")
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(cfg_path=None, driver=None, lidar=None, battery=None):
+def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False):
     cfg_path = Path(cfg_path or ROOT / "config" / "robot.yaml")
     cfg = cfgmod.load(cfg_path)
+    if demo:
+        cfg = copy.deepcopy(cfg)
+        cfg["driver"] = "mock"
+        cfg.setdefault("lidar", {})["driver"] = "mock"
+        cfg.setdefault("battery", {})["driver"] = "mock"
     driver = driver or make_driver(cfg)
     lidar = lidar or make_lidar(cfg)
     battery = battery or make_battery_reader(cfg)
@@ -93,6 +100,12 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None):
     def get_config():
         return JSONResponse(robot.cal_message())
 
+    @app.post("/api/palm")
+    async def palm_event(request: Request):
+        payload = await request.json()
+        robot.handle({"t": "palm", "detected": payload.get("detected", False)})
+        return {"ok": True, "wave": robot.mode == "wave"}
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
@@ -125,8 +138,10 @@ def main():
     ap.add_argument("--config", default=str(ROOT / "config" / "robot.yaml"))
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--demo", action="store_true", help="Use mock servos, lidar, and battery")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO)
+    uvicorn.run(create_app(args.config, demo=args.demo), host=args.host, port=args.port, log_level="info")
     uvicorn.run(create_app(args.config), host=args.host, port=args.port, log_level="info")
 
 

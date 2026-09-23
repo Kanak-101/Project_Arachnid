@@ -1,3 +1,5 @@
+  if (willArm && st && ['stand', 'crawl', 'trot', 'pace', 'bound', 'pronk', 'wave'].includes(st.mode)) {
+  if (['stand', 'crawl', 'trot', 'pace', 'bound', 'pronk', 'wave'].includes(mode)) {
 'use strict';
 /* quadbot bench console. Plain JavaScript, no external requests, so it works on a Pi hotspot with no internet. */
 
@@ -450,6 +452,7 @@ function buildCards() {
       <div class="fields">
         <label>µs per degree<input type="number" step="0.01" data-f="us_per_deg" value="${s.us_per_deg}"></label>
         <label>Max speed °/s<input type="number" step="5" data-f="max_speed_dps" value="${s.max_speed_dps}"></label>
+        <label>Sweep speed µs/s<input type="number" min="1" max="5000" step="10" class="sweep-speed" value="300"></label>
         <label>Measured angle °<input type="number" step="1" class="meas" value="45"></label>
         <button class="needs scale">Calibrate scale</button>
       </div>`;
@@ -466,7 +469,10 @@ function buildCards() {
       if (b.dataset.c === 'invert') { send({ t: 'servo_cal', id: s.id, field: 'invert', value: b.getAttribute('aria-pressed') !== 'true' }); }
       else send({ t: 'servo_cal', id: s.id, field: b.dataset.c });
     }));
-    $('.sweep', card).addEventListener('click', () => send({ t: 'servo_sweep', id: s.id }));
+    $('.sweep', card).addEventListener('click', () => {
+      const speed = Math.max(1, Math.min(5000, +$('.sweep-speed', card).value || 300));
+      send({ t: 'servo_sweep', id: s.id, speed_us_s: speed });
+    });
     $('.scale', card).addEventListener('click', () => send({ t: 'servo_cal', id: s.id, field: 'scale_from', value: +$('.meas', card).value }));
     $$('input[data-f]', card).forEach((inp) => inp.addEventListener('change', () => send({ t: 'servo_cal', id: s.id, field: inp.dataset.f, value: inp.type === 'number' ? +inp.value : inp.value })));
   });

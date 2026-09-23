@@ -139,6 +139,16 @@ def test_sweep_visits_both_limits_and_finishes():
     assert max(seen) == 2500 and min(seen) == 500 and seen[-1] == 1500
 
 
+def test_sweep_accepts_per_servo_speed(tmp_path):
+    r, _ = make(tmp_path)
+    r.arm(True)
+    r.enable_servo("FL_coxa", True)
+    r.handle({"t": "servo_sweep", "id": "FL_coxa", "speed_us_s": 50})
+    assert r.sweep["speed_us_s"] == 50
+    r.handle({"t": "servo_sweep", "id": "FL_coxa", "speed_us_s": 99999})
+    assert r.sweep["speed_us_s"] == 5000
+
+
 def test_switching_to_stand_ramps_at_rated_speed():
     r, d = make()
     r.arm(True)

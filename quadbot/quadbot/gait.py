@@ -10,6 +10,9 @@ GAITS = {
     # duty = fraction of the cycle a foot is on the ground; offsets = phase lag per leg
     "crawl": {"duty_key": "duty_crawl", "offsets": {"FL": 0.0, "RR": 0.25, "FR": 0.5, "RL": 0.75}},
     "trot": {"duty_key": "duty_trot", "offsets": {"FL": 0.0, "RR": 0.0, "FR": 0.5, "RL": 0.5}},
+    "pace": {"duty_key": "duty_trot", "offsets": {"FL": 0.0, "RL": 0.0, "FR": 0.5, "RR": 0.5}},
+    "bound": {"duty_key": "duty_trot", "offsets": {"FL": 0.0, "FR": 0.0, "RL": 0.5, "RR": 0.5}},
+    "pronk": {"duty_key": "duty_trot", "offsets": {"FL": 0.0, "FR": 0.0, "RL": 0.0, "RR": 0.0}},
 }
 
 

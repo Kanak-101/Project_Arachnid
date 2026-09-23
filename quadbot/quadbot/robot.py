@@ -19,6 +19,7 @@ from .kinematics import LegKinematics
 from .servos import AutoDerate, ServoCal, SlewLimiter
 
 MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot")
+MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot", "pace", "bound", "pronk", "wave")
 CAL_FIELDS = ("channel", "board", "us_per_deg", "max_speed_dps", "deg_min", "deg_max")
 
 
@@ -38,6 +39,9 @@ class Robot:
         self.gait = GaitEngine(cfg)
         self.limiter = SlewLimiter()
         self.derate = AutoDerate()
+        self.neutral_deg = self._ik_targets(self.gait.nominal(cfg["gait"]["height_stand"]))
+        self.wave_phase = None
+        self.palm_detected = False
         self.avoid = avoidmod.AvoidParams(**cfg.get("avoid", {}))
         c = cfg["control"]
         self.timeout = c["command_timeout_s"]
@@ -62,6 +66,15 @@ class Robot:
         self.notice = ""
         self.tick_ms = 0.0
         self._i2c_errors = 0
+
+    def _ik_targets(self, feet):
+        targets = {}
+        for leg, (x, y, z) in feet.items():
+            th1, a, b, _ = self.kin.ik_deg(x, y, z)
+            targets[f"{leg}_coxa"] = th1
+            targets[f"{leg}_femur"] = a
+            targets[f"{leg}_tibia"] = b
+        return targets
 
     # ---------------------------------------------------------------- safety
     def arm(self, on):
@@ -185,10 +198,11 @@ class Robot:
             return
         self.cal_version += 1
 
-    def start_sweep(self, sid):
+    def start_sweep(self, sid, speed_us_s=None):
         s = self.servos.get(sid)
         if s and sid in self.enabled and self.mode == "calib":
-            self.sweep = {"id": sid, "wps": [s.us_center, s.us_max, s.us_min, s.us_center], "i": 0}
+            speed = self.sweep_rate if speed_us_s is None else max(1.0, min(float(speed_us_s), 5000.0))
+            self.sweep = {"id": sid, "wps": [s.us_center, s.us_max, s.us_min, s.us_center], "i": 0, "speed_us_s": speed}
 
     # ---------------------------------------------------------------- modes / params
     def set_mode(self, mode):
@@ -208,7 +222,9 @@ class Robot:
         self.sweep = None
         self.cmd = (0.0, 0.0, 0.0)
         self.mode = mode
-        if self.armed and mode in ("stand", "crawl", "trot") and not self.enabled:
+        if mode != "wave":
+            self.wave_phase = None
+        if self.armed and mode in ("stand", "crawl", "trot", "pace", "bound", "pronk", "wave") and not self.enabled:
             self.enable_leg("FL", True)
             self.notice = f"Mode {mode}: Front-Left (FL) leg enabled (safe low-power)"
 
@@ -271,7 +287,7 @@ class Robot:
         elif t == "servo_cal":
             self.cal(msg.get("id"), msg.get("field"), msg.get("value"))
         elif t == "servo_sweep":
-            self.start_sweep(msg.get("id"))
+            self.start_sweep(msg.get("id"), msg.get("speed_us_s"))
         elif t == "leg":
             leg = msg.get("leg")
             if leg in self.leg_targets and self.mode == "legtest":
@@ -282,6 +298,17 @@ class Robot:
             self.save()
         elif t == "mock_obstacle" and hasattr(self.lidar, "set_obstacle"):
             self.lidar.set_obstacle(float(msg["dist_mm"]) if msg.get("on") else None)
+        elif t == "palm":
+            detected = bool(msg.get("detected", False))
+            if detected and not self.palm_detected and not self.estop:
+                self.set_mode("wave")
+                self.wave_phase = 0.0
+                self.cmd_t = self.clock()
+            self.palm_detected = detected
+        elif t == "action" and msg.get("action") == "wave":
+            self.set_mode("wave")
+            self.wave_phase = 0.0
+            self.cmd_t = self.clock()
 
     def quick_test(self, action, target=None):
         if not self.armed:
@@ -359,7 +386,7 @@ class Robot:
             if self.sweep:
                 sw = self.sweep
                 sid, target = sw["id"], sw["wps"][sw["i"]]
-                cur, step = self.manual_us[sid], self.sweep_rate * dt
+                cur, step = self.manual_us[sid], sw["speed_us_s"] * dt
                 if abs(target - cur) <= step:
                     self.manual_us[sid] = target
                     sw["i"] += 1
@@ -381,6 +408,13 @@ class Robot:
         else:
             if self.mode == "legtest":
                 feet = self.leg_targets
+            elif self.mode == "wave":
+                self.wave_phase = min(3.0, (self.wave_phase or 0.0) + dt * 1.4)
+                feet = self.gait.nominal(self.gait.height)
+                u = self.wave_phase % 1.0
+                feet["FL"] = (feet["FL"][0], feet["FL"][1] + 45.0 * math.sin(math.pi * u), feet["FL"][2] + 45.0 * math.sin(math.pi * u))
+                if self.wave_phase >= 3.0:
+                    self.set_mode("stand")
             else:
                 if self.mode in GAITS:
                     cmd, self.avoid_info = self._avoid(cmd)
@@ -391,7 +425,9 @@ class Robot:
             for leg, (x, y, z) in feet.items():
                 th1, a, b, ok = self.kin.ik_deg(x, y, z)
                 self.reach_ok[leg] = ok
-                targets[f"{leg}_coxa"], targets[f"{leg}_femur"], targets[f"{leg}_tibia"] = th1, a, b
+                targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
+                targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
+                targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
             for sid in list(self.enabled):
                 s = self.servos[sid]
                 deg = self.limiter.step(s, targets[sid], dt)
