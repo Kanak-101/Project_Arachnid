@@ -164,7 +164,9 @@ function buildGaitSliders() {
   const host = $('#gaitSliders'); host.innerHTML = '';
   const g = cal.gait;
   [
-    ['speed_scale', 'Speed scale', 0.2, 1.5, 0.05, '×'],
+    ['step_speed', 'Step speed', 0.4, 2.0, 0.05, '×'],
+    ['coxa_gain', 'Coxa swing', 0.5, 2.0, 0.05, '×'],
+    ['speed_scale', 'Drive scale', 0.2, 1.5, 0.05, '×'],
     ['step_len', 'Step length', 10, 70, 1, 'mm'],
     ['step_height', 'Step height', 10, 50, 1, 'mm'],
     ['freq_hz', 'Step rate', 0.2, 2.0, 0.05, 'Hz'],

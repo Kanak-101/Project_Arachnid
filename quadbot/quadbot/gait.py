@@ -44,20 +44,26 @@ class GaitEngine:
 
         gait = GAITS.get(mode, GAITS["crawl"])
         duty = p[gait["duty_key"]]
+        step_speed = float(p.get("step_speed", 1.0))
+        coxa_gain = float(p.get("coxa_gain", 1.0))
         if mag > 0.02:
-            self.phase = (self.phase + dt * p["freq_hz"] * p["speed_scale"] * freq_scale) % 1.0
+            self.phase = (self.phase + dt * p["freq_hz"] * p["speed_scale"] * step_speed * freq_scale) % 1.0
 
         step_len, step_h = p["step_len"], p["step_height"]
-        psi = wz * math.radians(p["yaw_step_deg"])
+        step_len *= step_speed
+        step_h *= step_speed
+        psi = wz * math.radians(p["yaw_step_deg"]) * p.get("turn_scale", 1.0)
         feet, self.swing = {}, []
         for leg, geo in self.legs.items():
             side = geo["side"]
             hx, hy = geo["hip_xy"]
             gamma = math.radians(geo.get("gamma", 90 if side == 1 else -90))
             rx, ry = hx + self.reach * math.cos(gamma), hy + self.reach * math.sin(gamma)           # nominal foot in body frame
-            # foot displacement over one stance, in the body frame (body moves +D, foot moves -D)
-            dx = -vx * step_len + psi * ry
-            dy = -vy * step_len - psi * rx
+            # Foot displacement over one stance, in the body frame (body moves +D, foot moves -D).
+            # The extra coxa gain is a safe bring-up tune for servos that are mechanically weak or
+            # under-driven on the front/rear-right side.
+            dx = (-vx * step_len + psi * ry) * coxa_gain
+            dy = (-vy * step_len - psi * rx) * coxa_gain
             ph = (self.phase + gait["offsets"][leg]) % 1.0
             if ph < duty:                                          # stance: foot slides backward
                 s = ph / duty

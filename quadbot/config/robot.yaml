@@ -65,8 +65,11 @@ gait:
   height_rest: 45
   stance_reach: 120     # foot distance from hip axis at rest (default = coxa + femur)
   step_len: 40          # stride at full stick (mm)
+  step_speed: 1.2       # global stride speed multiplier; tune this first to fix slow moves
+  coxa_gain: 1.3        # stronger coxa swing for under-driven front/rear-right joints
   step_height: 25
   yaw_step_deg: 10      # gentle body rotation per stance at full turn stick
+  turn_scale: 1.0
   freq_hz: 0.5          # smooth 0.5 Hz default walking rate
   speed_scale: 1.0
   duty_crawl: 0.75
