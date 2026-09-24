@@ -35,6 +35,12 @@ def test_crawl_never_lifts_more_than_one_leg():
     assert any(len(s) == 1 for _, s in frames)
 
 
+def test_crawl_swing_has_clearance_at_low_command():
+    _, frames = run("crawl", (0.1, 0, 0))
+    lifts = [feet[leg][2] - (-CFG["gait"]["height_stand"]) for feet, swing in frames for leg in swing]
+    assert lifts and max(lifts) >= CFG["gait"]["step_height"] * 0.9
+
+
 def test_trot_lifts_diagonal_pairs():
     _, frames = run("trot", (1, 0, 0))
     pairs = {tuple(sorted(s)) for _, s in frames if s}

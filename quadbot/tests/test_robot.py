@@ -102,17 +102,19 @@ def test_calibration_fields():
     r, _ = make()
     r.arm(True)
     r.enable_servo("FL_femur", True)
-    r.handle({"t": "servo_us", "id": "FL_femur", "us": 1620})
+    initial_center = r.servos["FL_femur"].us_center
+    target_center = initial_center - 100
+    r.handle({"t": "servo_us", "id": "FL_femur", "us": target_center})
     run(r, 0.5)
     r.cal("FL_femur", "center")
     s = r.servos["FL_femur"]
-    assert s.us_center == 1620
-    r.handle({"t": "servo_us", "id": "FL_femur", "us": 1720})
+    assert s.us_center == target_center
+    r.handle({"t": "servo_us", "id": "FL_femur", "us": target_center + 100})
     run(r, 0.5)
     r.cal("FL_femur", "scale_from", 10)           # 100 us for a measured 10 deg
     assert s.us_per_deg == 10.0
     r.cal("FL_femur", "high")
-    assert s.us_max == 1720
+    assert s.us_max == target_center + 100
     r.cal("FL_femur", "invert", True)
     assert s.invert
     r.cal("FL_femur", "channel", 7)

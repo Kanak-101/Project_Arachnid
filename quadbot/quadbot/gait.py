@@ -43,7 +43,7 @@ class GaitEngine:
         vx, vy, wz = self.cs
         mag = max(math.hypot(vx, vy), abs(wz))
         mag = min(mag, 1.0)
-        activity = min(1.0, mag * 4.0)
+        activity = 1.0 if mag > 0.02 else 0.0
 
         gait = GAITS.get(mode, GAITS["crawl"])
         duty = p[gait["duty_key"]]
@@ -56,7 +56,7 @@ class GaitEngine:
 
         step_len, step_h = p["step_len"], p["step_height"]
         step_len *= stride_scale * step_speed
-        step_h *= lift_scale * step_speed
+        step_h *= lift_scale
         step_len = max(0.0, min(step_len, 80.0))
         step_h = max(0.0, min(step_h, 35.0))
         psi = wz * math.radians(p["yaw_step_deg"]) * p.get("turn_scale", 1.0)
