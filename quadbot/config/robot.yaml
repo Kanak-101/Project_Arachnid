@@ -38,6 +38,21 @@ battery:
   v_max: 8.4            # 2S LiPo full charge (100%)
   v_warn: 7.0           # Low battery warning threshold
 
+imu:
+  enabled: true         # Set true after confirming the MPU-6050 address with i2cdetect
+  driver: mpu6050
+  bus: 1
+  address: 0x68         # placeholder: MPU-6050 may also be 0x69 when AD0 is high
+  rate_hz: 100
+  filter_alpha: 0.98
+  stabilize: false       # runtime toggle; keep off until the sensor is mounted level
+  max_correction_mm: 20.0
+  pid:
+    kp: 2.0
+    ki: 0.05
+    kd: 0.12
+    integral_limit: 10.0
+
 control:
   rate_hz: 50
   command_timeout_s: 0.4   # no fresh drive command for this long -> robot stops
