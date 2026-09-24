@@ -70,6 +70,7 @@ gait:
   coxa_gain: 1.5
   step_height: 15.0
   lift_scale: 1.25
+  lift_scale_by_leg: {FL: 1.4, FR: 1.0, RL: 1.4, RR: 1.0}
   yaw_step_deg: 20.0
   turn_scale: 0.8
   freq_hz: 0.7

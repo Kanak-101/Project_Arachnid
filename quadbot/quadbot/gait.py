@@ -79,8 +79,9 @@ class GaitEngine:
             else:                                                  # swing: foot arcs forward
                 u = (ph - duty) / (1 - duty)
                 off = 0.5 - 0.5 * (1 - math.cos(math.pi * u))
-                lift = step_h * math.sin(math.pi * u) * activity
-                if lift > 1.0:
+                leg_lift_scale = float(p.get("lift_scale_by_leg", {}).get(leg, 1.0))
+                lift = step_h * leg_lift_scale * math.sin(math.pi * u) * activity
+                if activity > 0.0:
                     self.swing.append(leg)
             ox, oy = dx * off, dy * off
             # body-frame offset -> leg frame (x outward along gamma, y forward perpendicular to gamma)

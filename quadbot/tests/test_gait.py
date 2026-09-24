@@ -41,6 +41,21 @@ def test_crawl_swing_has_clearance_at_low_command():
     assert lifts and max(lifts) >= CFG["gait"]["step_height"] * 0.9
 
 
+def test_per_leg_lift_trim_increases_left_leg_clearance():
+    cfg = {**CFG, "gait": {**CFG["gait"], "lift_scale_by_leg": {"FL": 1.4, "FR": 1.0, "RL": 1.4, "RR": 1.0}}}
+    g = GaitEngine(cfg)
+    g.cs = [1.0, 0.0, 0.0]
+    left_max = right_max = 0.0
+    for i in range(200):
+        g.phase = i / 200
+        feet = g.update(0.0, "crawl", (1, 0, 0))
+        for leg in ("FL", "RL"):
+            left_max = max(left_max, feet[leg][2] + g.height)
+        for leg in ("FR", "RR"):
+            right_max = max(right_max, feet[leg][2] + g.height)
+    assert left_max > right_max
+
+
 def test_trot_lifts_diagonal_pairs():
     _, frames = run("trot", (1, 0, 0))
     pairs = {tuple(sorted(s)) for _, s in frames if s}

@@ -376,14 +376,14 @@ function readPad() {
 
   // --- Left Stick: Forward / Backward (Axis 1) and Strafe Left / Right (Axis 0) ---
   // Up is -1 -> -(-1) = +1 (Forward), Down is +1 -> -(+1) = -1 (Backward)
-  let vx = -ax(1);
+  let vx = ax(1);
   // Left is -1 -> -(-1) = +1 (Strafe Left), Right is +1 -> -(+1) = -1 (Strafe Right)
-  let vy = -ax(0);
+  let vy = ax(0);
 
   // --- Right Stick: Yaw Turn (Axis 2, with fallback to Axis 3 if non-standard) ---
   const turnAxis = pad.axes.length > 2 ? 2 : 0;
   // Left is -1 -> -(-1) = +1 (Turn Left / CCW), Right is +1 -> -(+1) = -1 (Turn Right / CW)
-  let wz = -ax(turnAxis);
+  let wz = ax(turnAxis);
 
   // --- D-Pad Directional Controls (Buttons 12..15) ---
   if (b[12]) vx = 0.65;   // D-pad Up: Forward
@@ -405,7 +405,7 @@ function driveTick() {
   const pad = readPad();
   let vx = 0, vy = 0, wz = 0, src = 'none';
   if (pad && (pad.vx || pad.vy || pad.wz)) { vx += pad.vx; vy += pad.vy; wz += pad.wz; src = 'gamepad'; }
-  if (stickMove.active || stickTurn.active) { vx += stickMove.y; vy += -stickMove.x; wz += -stickTurn.x; src = 'touch'; }
+  if (stickMove.active || stickTurn.active) { vx -= stickMove.y; vy += stickMove.x; wz += stickTurn.x; src = 'touch'; }
   if (keys.size) {
     vx += (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
     vy += (keys.has('a') ? 1 : 0) - (keys.has('d') ? 1 : 0);
