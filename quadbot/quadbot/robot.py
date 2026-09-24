@@ -234,10 +234,11 @@ class Robot:
 
     def set_params(self, msg):
         gp = self.gait.p
-        for k in ("height_stand", "height_rest", "step_len", "step_height", "freq_hz", "speed_scale", "step_speed", "stride_scale", "lift_scale", "coxa_gain", "yaw_step_deg", "turn_scale"):
+        for k in ("height_stand", "height_rest", "stance_reach", "step_len", "step_height", "freq_hz", "speed_scale", "step_speed", "stride_scale", "lift_scale", "coxa_gain", "yaw_step_deg", "turn_scale"):
             if k in msg:
                 gp[k] = float(msg[k])
                 self.cfg["gait"][k] = gp[k]
+        self.gait.reach = float(gp.get("stance_reach", self.gait.reach))
         for k in ("stop_mm", "slow_mm", "arc_deg", "turn_gain"):
             if k in msg:
                 setattr(self.avoid, k, float(msg[k]))

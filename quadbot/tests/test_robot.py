@@ -192,6 +192,14 @@ def test_drive_values_are_clamped():
     assert r.cmd == (1.0, -1.0, 0.5)
 
 
+def test_gait_pose_parameters_update_reach_and_heights():
+    r, _ = make()
+    r.handle({"t": "params", "stance_reach": 135, "height_stand": 90, "height_rest": 60})
+    assert r.gait.reach == 135
+    assert r.gait.p["height_stand"] == 90
+    assert r.gait.p["height_rest"] == 60
+
+
 def test_avoidance_blocks_forward_walking_and_lidar_loss_is_flagged():
     near = StubLidar(dist=250.0)
     r, _ = make(lidar=near)

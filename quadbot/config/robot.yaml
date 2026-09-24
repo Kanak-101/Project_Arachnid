@@ -48,9 +48,9 @@ control:
 
 # All lengths in mm. UNVERIFIED PLACEHOLDERS: measure your legs and edit.
 geometry:
-  coxa: 40       # hip axis -> femur axis
-  femur: 80      # femur axis -> knee axis
-  tibia: 135     # knee axis -> foot tip
+  coxa: 45       # hip axis -> femur axis
+  femur: 80      # femur axis -> knee/tibia servo axis
+  tibia: 131     # tibia servo axis -> foot tip
 
 # hip_xy: hip position in the body frame (x forward, y left), mm. UNVERIFIED.
 # side: +1 for left legs, -1 for right legs.

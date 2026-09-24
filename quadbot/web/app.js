@@ -172,7 +172,9 @@ function buildGaitSliders() {
     ['step_len', 'Step length', 5, 50, 1, 'mm'],
     ['step_height', 'Step height', 5, 30, 1, 'mm'],
     ['freq_hz', 'Step rate', 0.2, 1.5, 0.05, 'Hz'],
+    ['stance_reach', 'Foot reach', 80, 180, 1, 'mm'],
     ['height_stand', 'Body height', 50, 110, 1, 'mm'],
+    ['height_rest', 'Rest height', 30, 110, 1, 'mm'],
     ['yaw_step_deg', 'Turn per step', 3, 20, 1, '°'],
   ].forEach(([key, label, min, max, step, unit]) =>
     mkSlider(host, { label, min, max, step, unit, value: g[key], onInput: (v) => sendThrottled('p_' + key, { t: 'params', [key]: v }) }));
