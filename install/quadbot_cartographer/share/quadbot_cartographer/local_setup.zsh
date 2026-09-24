@@ -1,0 +1,1 @@
+/home/leevai/quadbot_ws/build/quadbot_cartographer/ament_cmake_environment_hooks/local_setup.zsh
