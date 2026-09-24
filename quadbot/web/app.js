@@ -164,17 +164,17 @@ function buildGaitSliders() {
   const host = $('#gaitSliders'); host.innerHTML = '';
   const g = cal.gait;
   [
-    ['stride_scale', 'Stride scale', 0, 20, 0.05, '×'],
-    ['lift_scale', 'Lift scale', 0, 20, 0.05, '×'],
-    ['step_speed', 'Step speed', 0, 20, 0.05, '×'],
-    ['coxa_gain', 'Coxa swing', 0, 20, 0.05, '×'],
-    ['speed_scale', 'Drive scale', 0, 20, 0.05, '×'],
-    ['step_len', 'Step length', 0, 200, 1, 'mm'],
-    ['step_height', 'Step height', 0, 200, 1, 'mm'],
-    ['freq_hz', 'Step rate', 0, 20, 0.05, 'Hz'],
-    ['stance_reach', 'Foot reach', 0, 200, 1, 'mm'],
-    ['height_stand', 'Body height', 0, 200, 1, 'mm'],
-    ['height_rest', 'Rest height', 0, 200, 1, 'mm'],
+    ['stride_scale', 'Stride scale', 0, 2, 0.05, '×'],
+    ['lift_scale', 'Lift scale', 0, 2, 0.05, '×'],
+    ['step_speed', 'Step speed', 0, 1.5, 0.05, '×'],
+    ['coxa_gain', 'Coxa swing', 0, 1.5, 0.05, '×'],
+    ['speed_scale', 'Drive scale', 0, 1.5, 0.05, '×'],
+    ['step_len', 'Step length', 0, 40, 1, 'mm'],
+    ['step_height', 'Step height', 0, 35, 1, 'mm'],
+    ['freq_hz', 'Step rate', 0, 1.5, 0.05, 'Hz'],
+    ['stance_reach', 'Foot reach', 80, 180, 1, 'mm'],
+    ['height_stand', 'Body height', 20, 140, 1, 'mm'],
+    ['height_rest', 'Rest height', 20, 140, 1, 'mm'],
     ['yaw_step_deg', 'Turn per step', 0, 20, 0.5, '°'],
   ].forEach(([key, label, min, max, step, unit]) =>
     mkSlider(host, { label, min, max, step, unit, value: g[key], onInput: (v) => sendThrottled('p_' + key, { t: 'params', [key]: v }) }));

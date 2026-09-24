@@ -200,6 +200,20 @@ def test_gait_pose_parameters_update_reach_and_heights():
     assert r.gait.p["height_rest"] == 60
 
 
+def test_gait_tuning_is_clamped_to_servo_safe_ranges():
+    r, _ = make()
+    r.handle({
+        "t": "params", "stride_scale": 99, "step_len": 999,
+        "step_height": 999, "freq_hz": 99, "height_stand": -50,
+    })
+    assert r.gait.p["stride_scale"] == 2.0
+    assert r.gait.p["step_len"] == 40.0
+    assert r.gait.p["step_height"] == 35.0
+    assert r.gait.p["freq_hz"] == 1.5
+    assert r.gait.p["height_stand"] == 20.0
+    assert "Safety limits applied" in r.notice
+
+
 def test_stand_commands_each_saved_servo_center_after_pose_tuning():
     r, d = make()
     r.arm(True)
