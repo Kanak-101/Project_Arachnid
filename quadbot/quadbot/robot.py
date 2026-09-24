@@ -430,9 +430,14 @@ class Robot:
             for leg, (x, y, z) in feet.items():
                 th1, a, b, ok = self.kin.ik_deg(x, y, z)
                 self.reach_ok[leg] = ok
-                targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
-                targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
-                targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
+                if self.mode == "stand":
+                    targets[f"{leg}_coxa"] = 0.0
+                    targets[f"{leg}_femur"] = 0.0
+                    targets[f"{leg}_tibia"] = 0.0
+                else:
+                    targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
+                    targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
+                    targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
             for sid in list(self.enabled):
                 s = self.servos[sid]
                 deg = self.limiter.step(s, targets[sid], dt)

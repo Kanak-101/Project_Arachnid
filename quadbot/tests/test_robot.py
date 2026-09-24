@@ -200,6 +200,17 @@ def test_gait_pose_parameters_update_reach_and_heights():
     assert r.gait.p["height_rest"] == 60
 
 
+def test_stand_commands_each_saved_servo_center_after_pose_tuning():
+    r, d = make()
+    r.arm(True)
+    r.enable_servo("all", True)
+    r.handle({"t": "params", "stance_reach": 160, "height_stand": 100})
+    r.set_mode("stand")
+    run(r, 3.0)
+    for s in r.servos.values():
+        assert abs(d.pulses[(s.board, s.channel)] - s.us_center) < 1.5
+
+
 def test_avoidance_blocks_forward_walking_and_lidar_loss_is_flagged():
     near = StubLidar(dist=250.0)
     r, _ = make(lidar=near)
