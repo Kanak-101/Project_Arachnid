@@ -187,11 +187,16 @@ def make_driver(cfg):
     if cfg.get("driver", "mock") == "pca9685":
         p = cfg.get("pca9685", {})
         stagger = p.get("stagger", False)
-        if "boards" in p:
-            for b in p["boards"].values():
-                if "stagger" not in b:
-                    b["stagger"] = stagger
-            return PCA9685Driver(boards=p["boards"])
-        return PCA9685Driver(p.get("bus", 1), p.get("address", 0x40),
-                             p.get("freq_hz", 50), p.get("osc_hz", 25_000_000))
+        try:
+            if "boards" in p:
+                for b in p["boards"].values():
+                    if "stagger" not in b:
+                        b["stagger"] = stagger
+                return PCA9685Driver(boards=p["boards"])
+            return PCA9685Driver(p.get("bus", 1), p.get("address", 0x40),
+                                 p.get("freq_hz", 50), p.get("osc_hz", 25_000_000))
+        except (OSError, ImportError) as e:
+            import logging
+            logging.getLogger(__name__).warning("PCA9685 unavailable (%s); falling back to MockDriver", e)
+            return MockDriver()
     return MockDriver()

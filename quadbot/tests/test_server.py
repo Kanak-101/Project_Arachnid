@@ -79,3 +79,17 @@ def test_malformed_message_does_not_kill_the_connection(tmp_path):
         ws.send_json({"t": "mode", "mode": "flying"})
         ws.send_json({"t": "arm", "on": True})
         wait_for(ws, lambda m: m["t"] == "state" and m["armed"])
+
+
+def test_action_api_endpoint(tmp_path):
+    app = make_app(tmp_path)
+    robot = app.state.robot
+    with TestClient(app) as c:
+        robot.arm(True)
+        r = c.post("/api/action", json={"action": "pushup"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        assert data["action"] == "pushup"
+        assert robot.active_action == "pushup"
+

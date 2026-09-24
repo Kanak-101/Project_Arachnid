@@ -220,5 +220,66 @@ input[type=number] { width: 84px; min-height: 36px; padding: 0 6px; border: 1.5p
 .pad-pill.stop.active { background: var(--stop); color: #fff; border-color: #721c24; }
 .pad-pill.stop.active b, .pad-pill.stop.active span { color: #fff; }
 
+/* Expressive Actions & Poses Grid */
+.action-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.act-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.act-btn:hover {
+  background: #f1f5f9;
+  border-color: var(--steel);
+  transform: translateY(-1px);
+}
+.act-btn.active {
+  background: var(--steel);
+  color: #fff;
+  border-color: var(--steel-d);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+.act-icon {
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.act-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 4px;
+  color: var(--ink);
+}
+.act-btn.active .act-name {
+  color: #fff;
+}
+.act-desc {
+  font-size: 0.72rem;
+  color: var(--ink2);
+  margin-top: 2px;
+}
+.act-btn.active .act-desc {
+  color: #e2e8f0;
+}
+
+
 
 

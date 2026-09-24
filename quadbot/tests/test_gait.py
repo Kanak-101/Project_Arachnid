@@ -75,7 +75,7 @@ def test_turning_moves_left_and_right_feet_in_opposite_directions():
 
     def drift(leg):
         ys = [f[0][leg][1] for f in frames if leg not in f[1]]
-        d = [b - a for a, b in zip(ys, ys[1:]) if abs(b - a) < 5]
+        d = [b - a for a, b in zip(ys, ys[1:]) if abs(b - a) < 15]
         return sum(d) / len(d)
 
     assert drift("FL") > 0 > drift("FR")

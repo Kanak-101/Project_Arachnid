@@ -63,8 +63,14 @@ function onState(m) {
 
   $('#arm').setAttribute('aria-pressed', String(m.armed));
   $('#arm').textContent = m.armed ? 'Armed' : 'Arm servos';
-  const chip = $('#modeChip'); chip.textContent = m.estop ? 'e-stopped' : m.mode;
+  const chip = $('#modeChip');
+  chip.textContent = m.estop ? 'e-stopped' : (m.dance_figure ? `dance (${m.dance_figure})` : (m.active_action ? `action: ${m.active_action}` : m.mode));
   $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m.mode));
+  $$('.act-btn').forEach((b) => {
+    const act = b.dataset.act;
+    const isAct = (m.active_action === act || (act === 'dance' && m.mode === 'dance') || (act === 'wave' && m.mode === 'wave'));
+    b.classList.toggle('active', Boolean(isAct));
+  });
 
   if (m.notice && m.notice !== noticeText) showNotice(m.notice, m.estop);
   noticeText = m.notice;
@@ -663,7 +669,7 @@ $('#estop').addEventListener('click', () => { if (st && st.estop) send({ t: 'res
 $$('#modeSeg button').forEach((b) => b.addEventListener('click', () => {
   const mode = b.dataset.mode;
   if (!st || !st.armed) send({ t: 'arm', on: true });
-  if (['stand', 'crawl', 'trot'].includes(mode)) {
+  if (['stand', 'crawl', 'trot', 'dance'].includes(mode)) {
     send({ t: 'servo_enable_all', on: true });
   }
   send({ t: 'mode', mode });
@@ -689,12 +695,36 @@ $('#btnEnableAllDrive')?.addEventListener('click', enableAllServos);
 $('#btnReleaseAllDrive')?.addEventListener('click', releaseAllServos);
 
 $('#btnQuickStand')?.addEventListener('click', () => send({ t: 'quick_test', action: 'stand' }));
+$('#btnQuickDance')?.addEventListener('click', () => {
+  if (!st || !st.armed) send({ t: 'arm', on: true });
+  send({ t: 'servo_enable_all', on: true });
+  send({ t: 'mode', mode: 'dance' });
+});
+$('#btnQuickWave')?.addEventListener('click', () => {
+  if (!st || !st.armed) send({ t: 'arm', on: true });
+  send({ t: 'servo_enable_all', on: true });
+  send({ t: 'action', action: 'wave' });
+});
 $('#btnQuickCrawl')?.addEventListener('click', () => send({ t: 'quick_test', action: 'crawl_fwd' }));
 $('#btnQuickBack')?.addEventListener('click', () => send({ t: 'quick_test', action: 'crawl_back' }));
 $('#btnQuickTurnL')?.addEventListener('click', () => send({ t: 'quick_test', action: 'turn_left' }));
 $('#btnQuickTurnR')?.addEventListener('click', () => send({ t: 'quick_test', action: 'turn_right' }));
 $('#btnQuickZero')?.addEventListener('click', () => send({ t: 'quick_test', action: 'zero_1500' }));
 $('#btnQuickStop')?.addEventListener('click', () => send({ t: 'quick_test', action: 'stop' }));
+
+// Expressive Actions Grid listeners
+$$('.act-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const act = btn.dataset.act;
+    if (!st || !st.armed) send({ t: 'arm', on: true });
+    send({ t: 'servo_enable_all', on: true });
+    if (act === 'dance') {
+      send({ t: 'mode', mode: 'dance' });
+    } else {
+      send({ t: 'action', action: act });
+    }
+  });
+});
 
 // Direction pad interaction (works for touch/pointer hold & mouse click)
 $$('.dpad-btn').forEach((btn) => {

@@ -99,6 +99,7 @@
       <button data-mode="pace">Pace</button>
       <button data-mode="bound">Bound</button>
       <button data-mode="pronk">Pronk</button>
+      <button data-mode="dance">Dance</button>
       <button data-mode="wave">Wave</button>
     </div>
 
@@ -106,12 +107,60 @@
       <div class="quick-debug-title">Quick Motion Tests (Moves Only Active Servos Above):</div>
       <div class="quick-btn-row">
         <button id="btnQuickStand" class="qbtn">🧍 Stand Pose</button>
+        <button id="btnQuickDance" class="qbtn">💃 Dance</button>
+        <button id="btnQuickWave" class="qbtn">👋 Wave</button>
         <button id="btnQuickCrawl" class="qbtn">🚶 Walk Fwd</button>
         <button id="btnQuickBack" class="qbtn">🔙 Walk Back</button>
         <button id="btnQuickTurnL" class="qbtn">↺ Turn Left</button>
         <button id="btnQuickTurnR" class="qbtn">↻ Turn Right</button>
         <button id="btnQuickZero" class="qbtn">🎯 Zero (1500µs)</button>
         <button id="btnQuickStop" class="qbtn stop">⏹ Stop</button>
+      </div>
+    </div>
+
+    <div class="action-box">
+      <div class="quick-debug-title">🎭 Expressive Actions &amp; 6-DoF Body Poses:</div>
+      <div class="action-grid">
+        <button class="act-btn" data-act="dance">
+          <span class="act-icon">💃</span>
+          <span class="act-name">Multi-Dir Dance</span>
+          <span class="act-desc">Sway, groove &amp; salsa</span>
+        </button>
+        <button class="act-btn" data-act="wave">
+          <span class="act-icon">👋</span>
+          <span class="act-name">High Paw Wave</span>
+          <span class="act-desc">Weight shift &amp; salute</span>
+        </button>
+        <button class="act-btn" data-act="pushup">
+          <span class="act-icon">💪</span>
+          <span class="act-name">Push-ups</span>
+          <span class="act-desc">3 athletic dips</span>
+        </button>
+        <button class="act-btn" data-act="bow">
+          <span class="act-icon">🙇</span>
+          <span class="act-name">Play Bow</span>
+          <span class="act-desc">Cheeky dog stretch</span>
+        </button>
+        <button class="act-btn" data-act="wiggle">
+          <span class="act-icon">🐕</span>
+          <span class="act-name">Butt Wiggle</span>
+          <span class="act-desc">Pre-pounce waggle</span>
+        </button>
+        <button class="act-btn" data-act="stretch">
+          <span class="act-icon">🧘</span>
+          <span class="act-name">Cat Stretch</span>
+          <span class="act-desc">Downward dog &amp; arch</span>
+        </button>
+        <button class="act-btn" data-act="peek">
+          <span class="act-icon">👀</span>
+          <span class="act-name">Curious Peek</span>
+          <span class="act-desc">Stand tall &amp; inspect</span>
+        </button>
+        <button class="act-btn" data-act="shake">
+          <span class="act-icon">💦</span>
+          <span class="act-name">Wet Shake</span>
+          <span class="act-desc">Fast body vibration</span>
+        </button>
       </div>
     </div>
     <p class="hint">Arm servos first. If your power supply cannot power 12 servos at once, pick <b>Leg FL (3)</b> or a <b>Single joint</b> above to test gaits safely with low current!</p>

@@ -106,7 +106,14 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
     async def palm_event(request: Request):
         payload = await request.json()
         robot.handle({"t": "palm", "detected": payload.get("detected", False)})
-        return {"ok": True, "wave": robot.mode == "wave"}
+        return {"ok": True, "wave": (robot.mode == "wave" or robot.active_action == "wave")}
+
+    @app.post("/api/action")
+    async def action_event(request: Request):
+        payload = await request.json()
+        action = payload.get("action")
+        robot.handle({"t": "action", "action": action})
+        return {"ok": True, "action": action, "active": robot.active_action or robot.mode}
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):

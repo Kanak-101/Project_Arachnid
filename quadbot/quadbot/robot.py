@@ -18,10 +18,11 @@ from .gait import GaitEngine, GAITS
 from .imu import MPU6050
 from .kinematics import LegKinematics
 from .pid import PID
+from .poses import PoseActionEngine
 from .servos import AutoDerate, ServoCal, SlewLimiter
 
-MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot")
-MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot", "pace", "bound", "pronk", "wave")
+MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot", "pace", "bound", "pronk", "wave", "dance")
+ACTIONS = ("wave", "dance", "pushup", "bow", "wiggle", "stretch", "peek", "shake")
 CAL_FIELDS = ("channel", "board", "us_per_deg", "max_speed_dps", "deg_min", "deg_max")
 
 
@@ -42,6 +43,11 @@ class Robot:
         self.limiter = SlewLimiter()
         self.derate = AutoDerate()
         self.neutral_deg = self._ik_targets(self.gait.nominal(cfg["gait"]["height_stand"]))
+        self.pose_actions = PoseActionEngine(cfg, self.kin, self.neutral_deg, self.servos)
+        self.active_action = None
+        self.action_phase = 0.0
+        self.dance_phase = 0.0
+        self.dance_info = {}
         self.wave_phase = None
         self.palm_detected = False
         ic = cfg.get("imu", {})
@@ -249,7 +255,12 @@ class Robot:
         self.mode = mode
         if mode != "wave":
             self.wave_phase = None
-        if self.armed and mode in ("stand", "crawl", "trot", "pace", "bound", "pronk", "wave") and not self.enabled:
+        if mode != "dance":
+            self.dance_phase = 0.0
+        if self.active_action and mode != self.active_action:
+            self.active_action = None
+            self.action_phase = 0.0
+        if self.armed and mode in ("stand", "crawl", "trot", "pace", "bound", "pronk", "wave", "dance") and not self.enabled:
             self.enable_leg("FL", True)
             self.notice = f"Mode {mode}: Front-Left (FL) leg enabled (safe low-power)"
 
@@ -353,14 +364,38 @@ class Robot:
         elif t == "palm":
             detected = bool(msg.get("detected", False))
             if detected and not self.palm_detected and not self.estop:
-                self.set_mode("wave")
-                self.wave_phase = 0.0
-                self.cmd_t = self.clock()
+                self.trigger_action("wave")
             self.palm_detected = detected
-        elif t == "action" and msg.get("action") == "wave":
-            self.set_mode("wave")
-            self.wave_phase = 0.0
-            self.cmd_t = self.clock()
+        elif t == "action":
+            self.trigger_action(msg.get("action"))
+
+    def trigger_action(self, action_name):
+        if not action_name:
+            return
+        if not self.armed:
+            self.arm(True)
+        if len(self.enabled) < 12:
+            self.enable_servo("all", True)
+        if action_name == "stop":
+            self.active_action = None
+            self.action_phase = 0.0
+            self.set_mode("stand")
+            self.notice = "Action stopped. Returned to stand."
+            return
+        if action_name == "dance":
+            self.active_action = None
+            self.set_mode("dance")
+            self.notice = "Dance mode active (all-direction groove)"
+            return
+        if action_name not in ACTIONS:
+            self.notice = f"Unknown action: {action_name}"
+            return
+        if self.mode == "calib":
+            self.set_mode("stand")
+        self.active_action = action_name
+        self.action_phase = 0.0
+        self.cmd_t = self.clock()
+        self.notice = f"Action started: {action_name}"
 
     def quick_test(self, action, target=None):
         if not self.armed:
@@ -408,8 +443,13 @@ class Robot:
             for sid in self.servos:
                 self.manual_target[sid] = 1500.0
             self.notice = f"Centered to 1500 µs ({count_desc})"
+        elif action in ACTIONS:
+            self.trigger_action(action)
         elif action == "stop":
+            self.active_action = None
+            self.action_phase = 0.0
             self.cmd = (0.0, 0.0, 0.0)
+            self.set_mode("stand")
             self.notice = "Quick test: Stopped"
 
     # ---------------------------------------------------------------- control tick
@@ -434,7 +474,7 @@ class Robot:
         fresh = (self.clock() - self.cmd_t) < self.timeout
         cmd = self.cmd if fresh else (0.0, 0.0, 0.0)
 
-        if self.mode == "calib":
+        if self.active_action is None and self.mode == "calib":
             if self.sweep:
                 sw = self.sweep
                 sid, target = sw["id"], sw["wps"][sw["i"]]
@@ -458,47 +498,79 @@ class Robot:
                 self._write(sid, us)
                 self.limiter.reset(sid, s.us_to_deg(us))
         else:
-            if self.mode == "legtest":
-                feet = self.leg_targets
-            elif self.mode == "wave":
-                self.wave_phase = min(3.0, (self.wave_phase or 0.0) + dt * 1.4)
-                feet = self.gait.nominal(self.gait.height)
-                u = self.wave_phase % 1.0
-                feet["FL"] = (feet["FL"][0], feet["FL"][1] + 45.0 * math.sin(math.pi * u), feet["FL"][2] + 45.0 * math.sin(math.pi * u))
-                if self.wave_phase >= 3.0:
+            targets = None
+            if self.active_action:
+                self.action_phase += dt
+                act = self.active_action
+                if act == "wave":
+                    targets, done = self.pose_actions.wave_targets(self.action_phase)
+                elif act == "dance":
+                    targets, self.dance_info = self.pose_actions.dance_targets(self.action_phase)
+                    done = self.action_phase >= 12.0
+                elif act == "pushup":
+                    targets, done = self.pose_actions.pushup_targets(self.action_phase)
+                elif act == "bow":
+                    targets, done = self.pose_actions.bow_targets(self.action_phase)
+                elif act == "wiggle":
+                    targets, done = self.pose_actions.wiggle_targets(self.action_phase)
+                elif act == "stretch":
+                    targets, done = self.pose_actions.stretch_targets(self.action_phase)
+                elif act == "peek":
+                    targets, done = self.pose_actions.peek_targets(self.action_phase)
+                elif act == "shake":
+                    targets, done = self.pose_actions.shake_targets(self.action_phase)
+                else:
+                    targets, done = self.pose_actions.wave_targets(self.action_phase)
+                if done:
+                    self.active_action = None
+                    self.action_phase = 0.0
                     self.set_mode("stand")
-            else:
-                if self.mode in GAITS:
-                    cmd, self.avoid_info = self._avoid(cmd)
+                    self.notice = f"Action {act} completed"
+            elif self.mode == "dance":
+                self.dance_phase += dt
+                targets, self.dance_info = self.pose_actions.dance_targets(self.dance_phase)
+            elif self.mode == "wave":
+                self.wave_phase = (self.wave_phase or 0.0) + dt
+                targets, done = self.pose_actions.wave_targets(self.wave_phase)
+                if done:
+                    self.set_mode("stand")
+                    self.notice = "Wave completed"
+
+            if targets is None:
+                if self.mode == "legtest":
+                    feet = self.leg_targets
                 else:
-                    self.avoid_info = {"state": "off", "front_mm": None, "scale": 1.0}
-                feet = self.gait.update(dt, self.mode, cmd, self.derate.scale)
-                if self.imu and self.imu_stabilize and self.mode in GAITS and self.imu.ready:
-                    roll, pitch = self.imu.attitude()
-                    max_x = max(abs(g["hip_xy"][0]) for g in self.gait.legs.values())
-                    max_y = max(abs(g["hip_xy"][1]) for g in self.gait.legs.values())
-                    roll_correction = self.roll_pid.update(roll, dt)
-                    pitch_correction = self.pitch_pid.update(pitch, dt)
-                    corrected = {}
-                    for leg, (x, y, z) in feet.items():
-                        hx, hy = self.gait.legs[leg]["hip_xy"]
-                        roll_z = roll_correction * (hy / max_y)
-                        pitch_z = pitch_correction * (hx / max_x)
-                        correction = max(-self.imu_max_correction, min(self.imu_max_correction, roll_z + pitch_z))
-                        corrected[leg] = (x, y, z + correction)
-                    feet = corrected
-            targets = {}
-            for leg, (x, y, z) in feet.items():
-                th1, a, b, ok = self.kin.ik_deg(x, y, z)
-                self.reach_ok[leg] = ok
-                if self.mode == "stand":
-                    targets[f"{leg}_coxa"] = 0.0
-                    targets[f"{leg}_femur"] = 0.0
-                    targets[f"{leg}_tibia"] = 0.0
-                else:
-                    targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
-                    targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
-                    targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
+                    if self.mode in GAITS:
+                        cmd, self.avoid_info = self._avoid(cmd)
+                    else:
+                        self.avoid_info = {"state": "off", "front_mm": None, "scale": 1.0}
+                    feet = self.gait.update(dt, self.mode, cmd, self.derate.scale)
+                    if self.imu and self.imu_stabilize and self.mode in GAITS and self.imu.ready:
+                        roll, pitch = self.imu.attitude()
+                        max_x = max(abs(g["hip_xy"][0]) for g in self.gait.legs.values())
+                        max_y = max(abs(g["hip_xy"][1]) for g in self.gait.legs.values())
+                        roll_correction = self.roll_pid.update(roll, dt)
+                        pitch_correction = self.pitch_pid.update(pitch, dt)
+                        corrected = {}
+                        for leg, (x, y, z) in feet.items():
+                            hx, hy = self.gait.legs[leg]["hip_xy"]
+                            roll_z = roll_correction * (hy / max_y)
+                            pitch_z = pitch_correction * (hx / max_x)
+                            correction = max(-self.imu_max_correction, min(self.imu_max_correction, roll_z + pitch_z))
+                            corrected[leg] = (x, y, z + correction)
+                        feet = corrected
+                targets = {}
+                for leg, (x, y, z) in feet.items():
+                    th1, a, b, ok = self.kin.ik_deg(x, y, z)
+                    self.reach_ok[leg] = ok
+                    if self.mode == "stand":
+                        targets[f"{leg}_coxa"] = 0.0
+                        targets[f"{leg}_femur"] = 0.0
+                        targets[f"{leg}_tibia"] = 0.0
+                    else:
+                        targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
+                        targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
+                        targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
             for sid in list(self.enabled):
                 s = self.servos[sid]
                 deg = self.limiter.step(s, targets[sid], dt)
@@ -530,6 +602,7 @@ class Robot:
             "reach": self.gait.reach,
             "pulse_abs": [self.abs_lo, self.abs_hi],
             "modes": list(MODES),
+            "actions": list(ACTIONS),
         }
 
     def state_message(self):
@@ -548,6 +621,8 @@ class Robot:
             "armed": self.armed,
             "estop": self.estop,
             "mode": self.mode,
+            "active_action": self.active_action,
+            "dance_figure": self.dance_info.get("figure") if (self.mode == "dance" or self.active_action == "dance") else None,
             "num_enabled": len(self.enabled),
             "total_servos": len(self.servos),
             "enabled_list": list(self.enabled),

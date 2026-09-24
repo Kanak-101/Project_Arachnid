@@ -350,3 +350,44 @@ def test_quick_test_actions_and_servo_enable_all():
     r.handle({"t": "servo_enable_all", "on": False})
     assert len(r.enabled) == 0
 
+
+def test_robot_dance_mode():
+    r, d = make()
+    r.arm(True)
+    r.handle({"t": "servo_enable_all", "on": True})
+    r.handle({"t": "mode", "mode": "dance"})
+    assert r.mode == "dance"
+
+    # Step through ticks and verify state message and servo pulses
+    r.tick(0.05)
+    st = r.state_message()
+    assert st["mode"] == "dance"
+    assert st["dance_figure"] is not None
+    assert len(d.pulses) > 0
+
+
+def test_robot_actions():
+    r, d = make()
+    r.arm(True)
+    r.handle({"t": "servo_enable_all", "on": True})
+
+    # Trigger pushup action
+    r.handle({"t": "action", "action": "pushup"})
+    assert r.active_action == "pushup"
+    st = r.state_message()
+    assert st["active_action"] == "pushup"
+
+    # Tick past completion (pushup is ~3.9s)
+    run(r, 4.5, dt=0.05)
+    assert r.active_action is None
+    assert r.mode == "stand"
+    assert "completed" in r.notice
+
+    # Trigger wave action
+    r.handle({"t": "action", "action": "wave"})
+    assert r.active_action == "wave"
+    run(r, 4.5, dt=0.05)
+    assert r.active_action is None
+    assert r.mode == "stand"
+
+

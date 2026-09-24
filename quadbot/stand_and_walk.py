@@ -474,6 +474,114 @@ def run_stand_and_walk(duration_s=5.0, hold_s=2.5, speed="slow"):
     print("=" * 65 + "\n")
 
 
+def run_action(action: str, duration_s: float = None):
+    """Executes a 6-DoF expressive body pose or action."""
+    from pathlib import Path
+    from quadbot import config
+    from quadbot.kinematics import LegKinematics
+    from quadbot.servos import ServoCal, SlewLimiter
+    from quadbot.poses import PoseActionEngine
+
+    drv = get_driver()
+
+    def cleanup():
+        print("\n[EMERGENCY/EXIT] Releasing power to all servos...")
+        drv.release_all()
+        for sid in CURRENT_US:
+            CURRENT_US[sid] = 1500.0
+
+    atexit.register(cleanup)
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    cfg_path = Path(__file__).resolve().parent / "config" / "robot.yaml"
+    cfg = config.load(cfg_path)
+    kin = LegKinematics(**cfg["geometry"])
+    servos = {s["id"]: ServoCal.from_dict(s) for s in cfg["servos"]}
+    limiter = SlewLimiter()
+
+    stance_reach = float(cfg["gait"].get("stance_reach", 123.0))
+    height_stand = float(cfg["gait"].get("height_stand", 87.0))
+    th1, a, b, ok = kin.ik_deg(stance_reach, 0.0, -height_stand)
+    neutral_deg = {}
+    for leg in cfg["legs"]:
+        neutral_deg[f"{leg}_coxa"] = th1
+        neutral_deg[f"{leg}_femur"] = a
+        neutral_deg[f"{leg}_tibia"] = b
+
+    for sid in servos:
+        limiter.reset(sid, 0.0)
+
+    pose_actions = PoseActionEngine(cfg, kin, neutral_deg, servos)
+
+    print(f"\n[ACTION] Preparing to execute: '{action}'")
+    print("[STAGE 1/3] Standing up softly to calibrated stance...")
+    stand_targets = {sid: servos[sid].deg_to_us(0.0) for sid in servos}
+    soft_ramp_to(stand_targets, duration_s=1.5)
+    time.sleep(0.5)
+
+    print(f"[STAGE 2/3] Performing '{action}'...")
+    rate_hz = 40.0
+    dt = 1.0 / rate_hz
+    t_start = time.monotonic()
+
+    while True:
+        t_elapsed = time.monotonic() - t_start
+        if duration_s is not None and t_elapsed >= duration_s:
+            break
+
+        done = False
+        figure_desc = ""
+        if action == "wave":
+            targets, done = pose_actions.wave_targets(t_elapsed, duration=duration_s or 4.2)
+        elif action == "dance":
+            targets, info = pose_actions.dance_targets(t_elapsed, cycle_sec=12.0)
+            figure_desc = info.get("figure", "")
+            if duration_s is not None and t_elapsed >= duration_s:
+                done = True
+            elif duration_s is None and t_elapsed >= 12.0:
+                done = True
+        elif action == "pushup":
+            targets, done = pose_actions.pushup_targets(t_elapsed)
+        elif action == "bow":
+            targets, done = pose_actions.bow_targets(t_elapsed)
+        elif action == "wiggle":
+            targets, done = pose_actions.wiggle_targets(t_elapsed)
+        elif action == "stretch":
+            targets, done = pose_actions.stretch_targets(t_elapsed)
+        elif action == "peek":
+            targets, done = pose_actions.peek_targets(t_elapsed)
+        elif action == "shake":
+            targets, done = pose_actions.shake_targets(t_elapsed)
+        else:
+            print(f"Unknown action: {action}")
+            break
+
+        for sid, target_deg in targets.items():
+            s = servos[sid]
+            deg = limiter.step(s, target_deg, dt)
+            us = s.deg_to_us(deg)
+            drv.set_pulse(s.channel, us, board=s.board)
+            CURRENT_US[sid] = us
+
+        status_txt = f"\r  -> Time: {t_elapsed:.1f}s | Action: {action}"
+        if figure_desc:
+            status_txt += f" [{figure_desc}]"
+        sys.stdout.write(status_txt)
+        sys.stdout.flush()
+
+        if done:
+            break
+
+        time.sleep(dt)
+
+    print(f"\n[OK] Action '{action}' complete ({t_elapsed:.1f}s elapsed).")
+    print("[STAGE 3/3] Returning to neutral and releasing power...")
+    soft_ramp_to(stand_targets, duration_s=1.0)
+    time.sleep(0.2)
+    drv.release_all()
+    print("[SUCCESS] All servos released to limp mode.\n")
+
+
 # ==============================================================================
 # CLI DISPATCH
 # ==============================================================================
@@ -485,6 +593,8 @@ def main():
         epilog="""
 Examples:
   python stand_and_walk.py                    # Standard 5s walk with 2.5s hold
+  python stand_and_walk.py --action wave      # Execute high-lift paw wave
+  python stand_and_walk.py --action dance     # Execute multi-directional dance
   python stand_and_walk.py --duration 7.0     # Walk for 7 seconds
   python stand_and_walk.py --hold 3.0         # Hold still for 3 seconds before walking
   python stand_and_walk.py --speed normal     # Use normal speed preset
@@ -494,11 +604,13 @@ Examples:
         """
     )
     parser.add_argument("--duration", type=float, default=5.0,
-                        help="Duration of 2-leg forward walking in seconds (default: 5.0)")
+                        help="Duration of 2-leg forward walking or action in seconds (default: 5.0)")
     parser.add_argument("--hold", type=float, default=2.5,
                         help="Duration to hold still in seconds (default: 2.5)")
     parser.add_argument("--speed", choices=["slow", "normal"], default="slow",
                         help="Speed preset: 'slow' (power efficient, default) or 'normal'")
+    parser.add_argument("--action", choices=["wave", "dance", "pushup", "bow", "wiggle", "stretch", "peek", "shake"],
+                        help="Execute a specific action or expressive pose")
     parser.add_argument("--scan", action="store_true",
                         help="Scan I2C bus and unlock PCA9685 controllers")
     parser.add_argument("--battery", action="store_true",
@@ -531,9 +643,15 @@ Examples:
             print("\n[BATTERY] ADS1115 ADC not detected or running in simulation mode.\n")
         return
 
+    if args.action:
+        dur = args.duration if "--duration" in sys.argv else None
+        run_action(args.action, duration_s=dur)
+        return
+
     # Run the full sequence
     run_stand_and_walk(duration_s=args.duration, hold_s=args.hold, speed=args.speed)
 
 
 if __name__ == "__main__":
     main()
+
