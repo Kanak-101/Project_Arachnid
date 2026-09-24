@@ -46,12 +46,14 @@ imu:
   rate_hz: 100
   filter_alpha: 0.98
   stabilize: false       # runtime toggle; keep off until the sensor is mounted level
-  max_correction_mm: 20.0
+  max_correction_mm: 8.0
+  deadband_deg: 1.8
   pid:
-    kp: 2.0
-    ki: 0.05
-    kd: 0.12
-    integral_limit: 10.0
+    kp: 0.35
+    ki: 0.0
+    kd: 0.015
+    integral_limit: 4.0
+
 
 control:
   rate_hz: 50

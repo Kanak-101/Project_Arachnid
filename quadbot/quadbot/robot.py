@@ -22,7 +22,7 @@ from .poses import PoseActionEngine
 from .servos import AutoDerate, ServoCal, SlewLimiter
 
 MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot", "pace", "bound", "pronk", "wave", "dance")
-ACTIONS = ("wave", "dance", "pushup", "bow", "wiggle", "stretch", "peek", "shake")
+ACTIONS = ("wave", "dance", "crab", "pushup", "bow", "wiggle", "stretch", "peek", "shake")
 CAL_FIELDS = ("channel", "board", "us_per_deg", "max_speed_dps", "deg_min", "deg_max")
 
 
@@ -53,10 +53,14 @@ class Robot:
         ic = cfg.get("imu", {})
         self.imu = MPU6050(ic.get("bus", 1), ic.get("address", 0x68), ic.get("rate_hz", 100), ic.get("filter_alpha", 0.98)) if ic.get("enabled", False) else None
         self.imu_stabilize = bool(ic.get("stabilize", False))
-        self.imu_max_correction = float(ic.get("max_correction_mm", 20.0))
+        self.imu_max_correction = float(ic.get("max_correction_mm", 8.0))
+        self.imu_deadband = float(ic.get("deadband_deg", 1.8))
         pc = ic.get("pid", {})
-        self.roll_pid = PID(pc.get("kp", 2.0), pc.get("ki", 0.05), pc.get("kd", 0.12), self.imu_max_correction, pc.get("integral_limit", 10.0))
-        self.pitch_pid = PID(pc.get("kp", 2.0), pc.get("ki", 0.05), pc.get("kd", 0.12), self.imu_max_correction, pc.get("integral_limit", 10.0))
+        self.roll_pid = PID(pc.get("kp", 0.35), pc.get("ki", 0.0), pc.get("kd", 0.015), self.imu_max_correction, pc.get("integral_limit", 4.0))
+        self.pitch_pid = PID(pc.get("kp", 0.35), pc.get("ki", 0.0), pc.get("kd", 0.015), self.imu_max_correction, pc.get("integral_limit", 4.0))
+        self._roll_corr_smooth = 0.0
+        self._pitch_corr_smooth = 0.0
+
         self.avoid = avoidmod.AvoidParams(**cfg.get("avoid", {}))
         c = cfg["control"]
         self.timeout = c["command_timeout_s"]
@@ -93,6 +97,9 @@ class Robot:
     def reset_imu_pid(self):
         self.roll_pid.reset()
         self.pitch_pid.reset()
+        self._roll_corr_smooth = 0.0
+        self._pitch_corr_smooth = 0.0
+
 
     def _ik_targets(self, feet):
         targets = {}
@@ -507,6 +514,8 @@ class Robot:
                 elif act == "dance":
                     targets, self.dance_info = self.pose_actions.dance_targets(self.action_phase)
                     done = self.action_phase >= 12.0
+                elif act == "crab":
+                    targets, done = self.pose_actions.crab_targets(self.action_phase)
                 elif act == "pushup":
                     targets, done = self.pose_actions.pushup_targets(self.action_phase)
                 elif act == "bow":
@@ -547,18 +556,32 @@ class Robot:
                     feet = self.gait.update(dt, self.mode, cmd, self.derate.scale)
                     if self.imu and self.imu_stabilize and self.mode in GAITS and self.imu.ready:
                         roll, pitch = self.imu.attitude()
+                        db = self.imu_deadband
+                        err_roll = 0.0 if abs(roll) < db else roll - math.copysign(db, roll)
+                        err_pitch = 0.0 if abs(pitch) < db else pitch - math.copysign(db, pitch)
+                        roll_raw = self.roll_pid.update(err_roll, dt)
+                        pitch_raw = self.pitch_pid.update(err_pitch, dt)
+                        # Exponential smoothing filter to prevent sudden servo jerk
+                        self._roll_corr_smooth = 0.75 * self._roll_corr_smooth + 0.25 * roll_raw
+                        self._pitch_corr_smooth = 0.75 * self._pitch_corr_smooth + 0.25 * pitch_raw
+                        roll_correction = self._roll_corr_smooth
+                        pitch_correction = self._pitch_corr_smooth
+
                         max_x = max(abs(g["hip_xy"][0]) for g in self.gait.legs.values())
                         max_y = max(abs(g["hip_xy"][1]) for g in self.gait.legs.values())
-                        roll_correction = self.roll_pid.update(roll, dt)
-                        pitch_correction = self.pitch_pid.update(pitch, dt)
                         corrected = {}
+                        swing_legs = set(getattr(self.gait, "swing", []))
                         for leg, (x, y, z) in feet.items():
+                            if leg in swing_legs:
+                                corrected[leg] = (x, y, z)
+                                continue
                             hx, hy = self.gait.legs[leg]["hip_xy"]
                             roll_z = roll_correction * (hy / max_y)
                             pitch_z = pitch_correction * (hx / max_x)
                             correction = max(-self.imu_max_correction, min(self.imu_max_correction, roll_z + pitch_z))
                             corrected[leg] = (x, y, z + correction)
                         feet = corrected
+
                 targets = {}
                 for leg, (x, y, z) in feet.items():
                     th1, a, b, ok = self.kin.ik_deg(x, y, z)

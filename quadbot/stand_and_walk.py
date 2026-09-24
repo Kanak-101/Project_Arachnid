@@ -540,6 +540,8 @@ def run_action(action: str, duration_s: float = None):
                 done = True
             elif duration_s is None and t_elapsed >= 12.0:
                 done = True
+        elif action == "crab":
+            targets, done = pose_actions.crab_targets(t_elapsed, duration=duration_s or 6.0)
         elif action == "pushup":
             targets, done = pose_actions.pushup_targets(t_elapsed)
         elif action == "bow":
@@ -594,7 +596,8 @@ def main():
 Examples:
   python stand_and_walk.py                    # Standard 5s walk with 2.5s hold
   python stand_and_walk.py --action wave      # Execute high-lift paw wave
-  python stand_and_walk.py --action dance     # Execute multi-directional dance
+  python stand_and_walk.py --action dance     # Execute breakdance popping & shake
+  python stand_and_walk.py --action crab      # Execute side-to-side crab dance
   python stand_and_walk.py --duration 7.0     # Walk for 7 seconds
   python stand_and_walk.py --hold 3.0         # Hold still for 3 seconds before walking
   python stand_and_walk.py --speed normal     # Use normal speed preset
@@ -609,8 +612,9 @@ Examples:
                         help="Duration to hold still in seconds (default: 2.5)")
     parser.add_argument("--speed", choices=["slow", "normal"], default="slow",
                         help="Speed preset: 'slow' (power efficient, default) or 'normal'")
-    parser.add_argument("--action", choices=["wave", "dance", "pushup", "bow", "wiggle", "stretch", "peek", "shake"],
+    parser.add_argument("--action", choices=["wave", "dance", "crab", "pushup", "bow", "wiggle", "stretch", "peek", "shake"],
                         help="Execute a specific action or expressive pose")
+
     parser.add_argument("--scan", action="store_true",
                         help="Scan I2C bus and unlock PCA9685 controllers")
     parser.add_argument("--battery", action="store_true",

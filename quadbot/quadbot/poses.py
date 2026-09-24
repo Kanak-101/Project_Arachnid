@@ -108,62 +108,65 @@ class PoseActionEngine:
     # -------------------------------------------------------------------------
     # 1. DANCE: Multi-directional groove without lifting feet
     # -------------------------------------------------------------------------
+    # 1. DANCE: Breakdance-style popping & locking shake in place (no sliding)
+    # -------------------------------------------------------------------------
     def dance_targets(self, t: float, cycle_sec: float = 12.0) -> Tuple[Dict[str, float], Dict[str, float]]:
-        """Multi-directional continuous dance shifting stance in all directions."""
+        """Multi-directional popping & shaking dance in position with minimal foot slide."""
         phase = t % cycle_sec
 
-        # 4 distinct choreographed dance figures:
-        # 0.0 - 3.0s: Front-Back Groove
-        # 3.0 - 6.0s: Side-to-Side Sway
-        # 6.0 - 9.0s: Diagonal Shifts (Alternating FL-RR and FR-RL)
-        # 9.0 - 12.0s: 360° Circular Salsa Orbit + Height Bounce + Yaw Groove
+        # 4 distinct choreographed popping & shaking figures with small displacement:
+        # 0.0 - 3.0s: Popping Beat Bounce (crisp micro vertical snaps and pitch pulses)
+        # 3.0 - 6.0s: Rapid Shoulder Shimmy Shake (fast body roll and lateral shake)
+        # 6.0 - 9.0s: Diagonal Staccato Lock (sharp micro-diagonal popping freeze)
+        # 9.0 - 12.0s: Breakdance Pop & Orbit (micro circular groove and yaw shimmy)
         if phase < 3.0:
-            # Front-Back Groove (2 full cycles in 3.0s)
+            # Popping Beat Bounce (fast 2.5Hz staccato bounce in place)
             u = phase / 3.0
-            omega = 2.0 * math.pi * (u * 2.0)
-            dx = 22.0 * math.sin(omega)
+            omega = 2.0 * math.pi * (u * 2.5)
+            bounce = abs(math.sin(omega))
+            dx = 4.0 * math.sin(omega)
             dy = 0.0
-            dz = 2.0 * (1.0 - math.cos(2.0 * omega))
-            pitch = 6.0 * math.sin(omega)
+            dz = -4.5 * bounce
+            pitch = 3.5 * math.sin(omega)
             roll = 0.0
             yaw = 0.0
-            desc = "Front-Back Groove"
+            desc = "Popping Beat Bounce"
         elif phase < 6.0:
-            # Side-to-Side Sway (2 full cycles in 3.0s)
+            # Rapid Shoulder Shimmy Shake (3.5Hz fast side-to-side roll shake)
             u = (phase - 3.0) / 3.0
-            omega = 2.0 * math.pi * (u * 2.0)
+            omega = 2.0 * math.pi * (u * 3.5)
             dx = 0.0
-            dy = 22.0 * math.sin(omega)
-            dz = 2.0 * (1.0 - math.cos(2.0 * omega))
+            dy = 4.5 * math.sin(omega)
+            dz = -2.0 * (1.0 - math.cos(omega))
             pitch = 0.0
-            roll = 6.5 * math.sin(omega)
-            yaw = 0.0
-            desc = "Side-to-Side Sway"
+            roll = 5.0 * math.sin(omega)
+            yaw = 2.5 * math.cos(omega)
+            desc = "Shoulder Shimmy Shake"
         elif phase < 9.0:
-            # Diagonal Shifting
+            # Diagonal Staccato Lock (sharp diagonal pop)
             u = (phase - 6.0) / 3.0
             diag_sign = 1.0 if u < 0.5 else -1.0
             sub_u = (u % 0.5) / 0.5
             omega = 2.0 * math.pi * sub_u
-            d = 18.0 * math.sin(omega)
+            d = 4.0 * math.sin(omega)
             dx = d
             dy = d * diag_sign
-            dz = 2.0 * (1.0 - math.cos(omega))
-            pitch = 4.5 * math.sin(omega)
-            roll = 4.5 * math.sin(omega) * diag_sign
+            dz = -3.0 * abs(math.sin(omega))
+            pitch = 2.5 * math.sin(omega)
+            roll = 2.5 * math.sin(omega) * diag_sign
             yaw = 2.0 * math.sin(omega) * diag_sign
-            desc = "Diagonal Sway" if diag_sign > 0 else "Reverse Diagonal"
+            desc = "Diagonal Pop Lock" if diag_sign > 0 else "Reverse Diag Pop"
         else:
-            # 360° Circular Salsa Orbit
+            # Breakdance Pop & Orbit (micro orbit with yaw shake)
             u = (phase - 9.0) / 3.0
-            angle = 2.0 * math.pi * (u * 2.0)
-            dx = 18.0 * math.cos(angle)
-            dy = 18.0 * math.sin(angle)
-            dz = 6.0 * math.sin(2.0 * angle)
-            pitch = 5.0 * math.cos(angle)
-            roll = 5.0 * math.sin(angle)
-            yaw = 4.5 * math.sin(angle)
-            desc = "360° Salsa Orbit"
+            angle = 2.0 * math.pi * (u * 2.2)
+            dx = 4.5 * math.cos(angle)
+            dy = 4.5 * math.sin(angle)
+            dz = -3.5 * abs(math.sin(2.0 * angle))
+            pitch = 2.5 * math.cos(angle)
+            roll = 2.5 * math.sin(angle)
+            yaw = 4.0 * math.sin(angle)
+            desc = "Breakdance Pop Orbit"
 
         feet = self.body_engine.compute_feet(dx, dy, dz, roll_deg=roll, pitch_deg=pitch, yaw_deg=yaw)
         targets, ok = self._ik_relative(feet)
@@ -210,8 +213,8 @@ class PoseActionEngine:
         s_tibia = self.servos.get(tibia_sid)
         s_femur = self.servos.get(femur_sid)
 
-        # Tibia lifts to upper calibrated range so the foot is high in the air
-        tibia_hi = min(s_tibia.deg_range()[1] * 0.85, 72.0) if s_tibia else 65.0
+        # Tibia lifts into the air: with inverted servo sign, negative degrees fold/raise the tibia UP
+        tibia_hi = min(abs(s_tibia.deg_range()[0]) * 0.85, 72.0) if s_tibia else 65.0
         femur_hi = min(s_femur.deg_range()[1] * 0.85, 50.0) if s_femur else 45.0
 
         # Coxa back-and-forth waving cycles (3 full waves between 0.7s and 3.5s)
@@ -220,17 +223,18 @@ class PoseActionEngine:
         wave_osc = math.sin(2.0 * math.pi * wave_freq * wave_time) if 0.7 <= t_clamped <= 3.5 else 0.0
 
         # Waving leg targets (relative to neutral stand)
+        # Note: Tibia uses -tibia_hi so the tibia folds UP into the air instead of pushing down
         targets[femur_sid] = femur_hi * blend
-        targets[tibia_sid] = tibia_hi * blend + (10.0 * wave_osc * blend)
+        targets[tibia_sid] = -tibia_hi * blend - (10.0 * wave_osc * blend)
         targets[coxa_sid] = 28.0 * wave_osc * blend
 
         return targets, done
 
     # -------------------------------------------------------------------------
-    # 3. PUSHUP: Athletic chest dips / squats
+    # 3. PUSHUP: Athletic chest dips / squats (safe clearance from ground)
     # -------------------------------------------------------------------------
     def pushup_targets(self, t: float, reps: int = 3, rep_time: float = 1.3) -> Tuple[Dict[str, float], bool]:
-        """Chest dips / pushups lowering front and pushing explosively back up."""
+        """Chest dips / pushups lowering front with sufficient clearance off the ground."""
         total_time = reps * rep_time
         done = t >= total_time
         t_clamped = min(t, total_time)
@@ -241,14 +245,36 @@ class PoseActionEngine:
         if done:
             dip = 0.0
 
-        dz = -25.0 * dip
-        pitch = 11.0 * dip
+        # Gentle dip keeping body safely off the floor
+        dz = -12.0 * dip
+        pitch = 6.5 * dip
         feet = self.body_engine.compute_feet(dx=0.0, dy=0.0, dz=dz, pitch_deg=pitch)
         targets, _ = self._ik_relative(feet)
         return targets, done
 
     # -------------------------------------------------------------------------
-    # 4. BOW: Classic dog play bow / Japanese greeting
+    # 4. CRAB: Side-to-side dipping Crab Dance
+    # -------------------------------------------------------------------------
+    def crab_targets(self, t: float, duration: float = 6.0) -> Tuple[Dict[str, float], bool]:
+        """Crab dance: dips down low on the left side, then rocks and dips down on the right."""
+        done = t >= duration
+        t_clamped = min(t, duration)
+
+        cycle_time = 1.8  # seconds per complete left-to-right rock
+        omega = 2.0 * math.pi * (t_clamped / cycle_time)
+
+        # Alternating side dip
+        roll = 8.5 * math.sin(omega)                         # Negative = lean left, Positive = lean right
+        dy = 10.0 * math.sin(omega)                          # Shift body laterally toward the dipping side
+        dz = -9.0 * (0.5 * (1.0 - math.cos(2.0 * omega)))   # Squat down at each peak lean
+        yaw = 3.5 * math.sin(omega)
+
+        feet = self.body_engine.compute_feet(dx=0.0, dy=dy, dz=dz, roll_deg=roll, yaw_deg=yaw)
+        targets, _ = self._ik_relative(feet)
+        return targets, done
+
+    # -------------------------------------------------------------------------
+    # 5. BOW: Classic dog play bow / Japanese greeting
     # -------------------------------------------------------------------------
     def bow_targets(self, t: float, hold_sec: float = 3.2) -> Tuple[Dict[str, float], bool]:
         """Play bow: front elbows drop low to ground, rear legs elevated tall."""
@@ -263,19 +289,19 @@ class PoseActionEngine:
         else:
             blend = 0.5 * (1.0 + math.cos(math.pi * ((t_clamped - 2.4) / 0.8)))
 
-        dz = -18.0 * blend
-        pitch = 14.0 * blend
-        dx = -12.0 * blend  # push back slightly to stretch shoulders
+        dz = -16.0 * blend
+        pitch = 12.0 * blend
+        dx = -10.0 * blend  # push back slightly to stretch shoulders
 
         feet = self.body_engine.compute_feet(dx=dx, dy=0.0, dz=dz, pitch_deg=pitch)
         targets, _ = self._ik_relative(feet)
         return targets, done
 
     # -------------------------------------------------------------------------
-    # 5. WIGGLE: Butt / Hip waggle (playful pounce prep)
+    # 6. WIGGLE: Butt / Hip waggle (playful pounce prep with boosted coxa angle)
     # -------------------------------------------------------------------------
     def wiggle_targets(self, t: float, duration: float = 3.0) -> Tuple[Dict[str, float], bool]:
-        """Front stays anchored while rear hips playfully wiggle side-to-side."""
+        """Front stays anchored while rear hips playfully wiggle side-to-side with boosted coxa angle."""
         done = t >= duration
         t_clamped = min(t, duration)
 
@@ -287,9 +313,9 @@ class PoseActionEngine:
 
         freq = 3.2  # rapid waggle
         osc = math.sin(2.0 * math.pi * freq * t_clamped) * envelope
-        dy = 16.0 * osc
-        yaw = 8.5 * osc
-        roll = 4.0 * osc
+        dy = 22.0 * osc
+        yaw = 13.0 * osc
+        roll = 5.0 * osc
 
         feet = self.body_engine.compute_feet(dx=0.0, dy=dy, dz=0.0, roll_deg=roll, yaw_deg=yaw)
         targets, _ = self._ik_relative(feet)
@@ -298,7 +324,12 @@ class PoseActionEngine:
         for joint in ["FL_coxa", "FL_femur", "FL_tibia", "FR_coxa", "FR_femur", "FR_tibia"]:
             targets[joint] *= 0.15
 
+        # Boost rear coxa rotation angle for an expressive waggle
+        targets["RL_coxa"] += 14.0 * osc
+        targets["RR_coxa"] += 14.0 * osc
+
         return targets, done
+
 
     # -------------------------------------------------------------------------
     # 6. STRETCH: Morning Cat-Cow Yoga Stretch

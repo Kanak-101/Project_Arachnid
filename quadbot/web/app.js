@@ -342,34 +342,69 @@ function readPad() {
     showNotice(`🎮 Gamepad: ${label}`);
   };
 
-  // --- XYAB Button Mappings ---
-  // Button 0 (A): Stand Pose
+  // Helper to trigger actions safely from gamepad
+  const triggerActionFromPad = (actionName, label) => {
+    if (!st || !st.armed) send({ t: 'arm', on: true });
+    send({ t: 'servo_enable_all', on: true });
+    send({ t: 'action', action: actionName });
+    showNotice(`🎮 Gamepad: ${label}`);
+  };
+
+  // --- Button 3 (Y / Triangle): Mode Cycle Button ---
+  // Cycles smoothly: Stand -> Crawl -> Trot -> Dance -> Rest -> Stand
+  const MODES_CYCLE = ['stand', 'crawl', 'trot', 'dance', 'rest'];
+  if (edge(3)) {
+    const curMode = st?.mode || 'stand';
+    const curIdx = MODES_CYCLE.indexOf(curMode);
+    const nextMode = MODES_CYCLE[(curIdx + 1) % MODES_CYCLE.length];
+    setModeFromPad(nextMode, `Mode: ${nextMode.toUpperCase()} 🔄`);
+  }
+
+  // --- Button 0 (A / Cross): Stand Pose / Center ---
   if (edge(0)) {
     setModeFromPad('stand', 'Stand Pose');
   }
-  // Button 1 (B): Rest Pose
+
+  // --- Button 1 (B / Circle): Crab Dance (Side-to-Side Dip) ---
   if (edge(1)) {
-    send({ t: 'mode', mode: 'rest' });
-    showNotice('🎮 Gamepad: Rest Pose');
-  }
-  // Button 2 (X): Crawl Walking Gait
-  if (edge(2)) {
-    setModeFromPad('crawl', 'Crawl Gait');
-  }
-  // Button 3 (Y): Trot Walking Gait
-  if (edge(3)) {
-    setModeFromPad('trot', 'Trot Gait');
+    triggerActionFromPad('crab', 'Crab Dance 🦀');
   }
 
-  // --- Triggers & Auxiliary Buttons ---
-  // Button 9 (Start): Toggle Arm / Enable All
+  // --- Button 2 (X / Square): High-Five Wave ---
+  if (edge(2)) {
+    triggerActionFromPad('wave', 'High Paw Wave 👋');
+  }
+
+  // --- Bumpers: Expressive Quick Actions ---
+  // Button 4 (LB): Athletic Push-ups
+  if (edge(4)) {
+    triggerActionFromPad('pushup', 'Push-ups 💪');
+  }
+  // Button 5 (RB): Playful Butt Wiggle
+  if (edge(5)) {
+    triggerActionFromPad('wiggle', 'Butt Wiggle 🐕');
+  }
+
+  // --- Stick Clicks ---
+  // Button 10 (L3 Stick Click): Immediate Emergency Stop
+  if (edge(10)) {
+    send({ t: 'estop' });
+    showNotice('🚨 Gamepad: E-STOP Triggered!', true);
+  }
+  // Button 11 (R3 Stick Click): Curious Peek
+  if (edge(11)) {
+    triggerActionFromPad('peek', 'Curious Peek 👀');
+  }
+
+  // --- System Buttons ---
+  // Button 9 (Start): Toggle Arm / Disarm Servos
   if (edge(9)) {
     const willArm = !(st && st.armed);
     send({ t: 'arm', on: willArm });
     if (willArm) send({ t: 'servo_enable_all', on: true });
     showNotice(willArm ? '🎮 Gamepad: Servos Armed' : '🎮 Gamepad: Servos Released');
   }
-  // Button 8 (Select / Back): Reset E-Stop or Stop Motion
+  // Button 8 (Select / Back): Stop Motion or Reset E-Stop
   if (edge(8)) {
     if (st && st.estop) {
       send({ t: 'reset_estop' });
@@ -379,22 +414,17 @@ function readPad() {
       showNotice('🎮 Gamepad: Motion Stopped');
     }
   }
-  // Buttons 4 & 5 (LB / RB): Immediate E-Stop
-  if (edge(4) || edge(5)) {
-    send({ t: 'estop' });
-    showNotice('🚨 Gamepad: E-STOP Triggered!', true);
-  }
 
   // --- Left Stick: Forward / Backward (Axis 1) and Strafe Left / Right (Axis 0) ---
-  // Up is -1 -> -(-1) = +1 (Forward), Down is +1 -> -(+1) = -1 (Backward)
-  let vx = ax(1);
-  // Left is -1 -> -(-1) = +1 (Strafe Left), Right is +1 -> -(+1) = -1 (Strafe Right)
-  let vy = ax(0);
+  // Stick UP is -1.0 -> -(-1.0) = +1.0 (Forward), Stick DOWN is +1.0 -> -(+1.0) = -1.0 (Backward)
+  let vx = -ax(1);
+  // Stick LEFT is -1.0 -> -(-1.0) = +1.0 (Strafe Left), Stick RIGHT is +1.0 -> -(+1.0) = -1.0 (Strafe Right)
+  let vy = -ax(0);
 
   // --- Right Stick: Yaw Turn (Axis 2, with fallback to Axis 3 if non-standard) ---
   const turnAxis = pad.axes.length > 2 ? 2 : 0;
-  // Left is -1 -> -(-1) = +1 (Turn Left / CCW), Right is +1 -> -(+1) = -1 (Turn Right / CW)
-  let wz = ax(turnAxis);
+  // Stick LEFT is -1.0 -> -(-1.0) = +1.0 (Turn Left / CCW), Stick RIGHT is +1.0 -> -(+1.0) = -1.0 (Turn Right / CW)
+  let wz = -ax(turnAxis);
 
   // --- D-Pad Directional Controls (Buttons 12..15) ---
   if (b[12]) vx = 0.65;   // D-pad Up: Forward
@@ -416,13 +446,14 @@ function driveTick() {
   const pad = readPad();
   let vx = 0, vy = 0, wz = 0, src = 'none';
   if (pad && (pad.vx || pad.vy || pad.wz)) { vx += pad.vx; vy += pad.vy; wz += pad.wz; src = 'gamepad'; }
-  if (stickMove.active || stickTurn.active) { vx -= stickMove.y; vy += stickMove.x; wz += stickTurn.x; src = 'touch'; }
+  if (stickMove.active || stickTurn.active) { vx += stickMove.y; vy += -stickMove.x; wz += -stickTurn.x; src = 'touch'; }
   if (keys.size) {
     vx += (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
     vy += (keys.has('a') ? 1 : 0) - (keys.has('d') ? 1 : 0);
     wz += (keys.has('q') ? 1 : 0) - (keys.has('e') ? 1 : 0);
     if (vx || vy || wz) src = 'keyboard';
   }
+
   if (dpadCmd) {
     vx += dpadCmd.vx;
     vy += dpadCmd.vy;

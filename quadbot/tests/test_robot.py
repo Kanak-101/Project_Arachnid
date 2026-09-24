@@ -390,4 +390,14 @@ def test_robot_actions():
     assert r.active_action is None
     assert r.mode == "stand"
 
+    # Trigger crab dance action
+    r.handle({"t": "action", "action": "crab"})
+    assert r.active_action == "crab"
+    st = r.state_message()
+    assert st["active_action"] == "crab"
+    run(r, 6.5, dt=0.05)
+    assert r.active_action is None
+    assert r.mode == "stand"
+
+
 

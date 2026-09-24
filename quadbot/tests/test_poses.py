@@ -73,11 +73,11 @@ def test_dance_trajectory_and_figures(robot_setup):
 
     # Test all 4 choreographed figures across 12.0s
     times_and_expected_figures = [
-        (1.5, "Front-Back Groove"),
-        (4.5, "Side-to-Side Sway"),
-        (7.0, "Diagonal Sway"),
-        (8.5, "Reverse Diagonal"),
-        (10.5, "360° Salsa Orbit"),
+        (1.5, "Popping Beat Bounce"),
+        (4.5, "Shoulder Shimmy Shake"),
+        (7.0, "Diagonal Pop Lock"),
+        (8.5, "Reverse Diag Pop"),
+        (10.5, "Breakdance Pop Orbit"),
     ]
 
     for t, expected_fig in times_and_expected_figures:
@@ -92,11 +92,11 @@ def test_dance_trajectory_and_figures(robot_setup):
 def test_wave_trajectory_and_limits(robot_setup):
     _, _, _, _, engine = robot_setup
 
-    # During wave peak (t=2.0s), FL tibia and femur should be strongly lifted
+    # During wave peak (t=2.0s), FL femur is elevated and tibia is folded UP in the air (negative angle)
     targets, done = engine.wave_targets(2.0, duration=4.2, wave_leg="FL")
     assert not done
     assert targets["FL_femur"] > 35.0   # Femur elevated
-    assert targets["FL_tibia"] > 50.0   # Tibia lifted high off ground to calibrated limit
+    assert targets["FL_tibia"] < -50.0  # Tibia folded UP into the air (inverted servo lift)
     assert abs(targets["FL_coxa"]) <= 30.0
 
     # At t >= 4.2s, wave finishes
@@ -117,12 +117,22 @@ def test_pushup_action(robot_setup):
     assert done_end
 
 
+def test_crab_action(robot_setup):
+    _, _, _, _, engine = robot_setup
+
+    targets, done = engine.crab_targets(0.9, duration=6.0)
+    assert not done
+    assert len(targets) == 12
+
+    _, done_end = engine.crab_targets(6.2, duration=6.0)
+    assert done_end
+
+
 def test_bow_action(robot_setup):
     _, _, _, _, engine = robot_setup
 
     targets, done = engine.bow_targets(1.5, hold_sec=3.2)
     assert not done
-    # Front legs lowered (more negative z offset), rear elevated
     assert len(targets) == 12
 
     _, done_end = engine.bow_targets(3.5, hold_sec=3.2)
@@ -134,11 +144,13 @@ def test_wiggle_action(robot_setup):
 
     targets, done = engine.wiggle_targets(1.5, duration=3.0)
     assert not done
-    # Front legs damped relative to rear
-    assert abs(targets["FL_coxa"]) < abs(targets["RL_coxa"]) + 1e-4
+    # Front legs damped relative to rear, and rear coxa boosted
+    assert abs(targets["FL_coxa"]) < abs(targets["RL_coxa"])
+    assert abs(targets["RL_coxa"]) > 10.0
 
     _, done_end = engine.wiggle_targets(3.2, duration=3.0)
     assert done_end
+
 
 
 def test_stretch_action(robot_setup):
