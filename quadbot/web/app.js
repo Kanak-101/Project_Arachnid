@@ -113,6 +113,11 @@ function onState(m) {
   });
 
   $('#chkDerate').checked = m.auto_derate;
+  if (m.imu) {
+    $('#chkImu').checked = !!m.imu.stabilize;
+    $('#chkImu').disabled = !m.imu.ready;
+    $('#imuStatus').textContent = m.imu.enabled ? (m.imu.ready ? `IMU ready · roll ${m.imu.roll.toFixed(1)}° · pitch ${m.imu.pitch.toFixed(1)}°` : `IMU unavailable: ${m.imu.error || 'check address'}`) : 'IMU disabled in config';
+  }
   $('#derateBar').style.width = Math.round(m.gait_scale * 100) + '%';
   $('#derateVal').textContent = Math.round(m.gait_scale * 100) + '%';
   const a = m.avoid, ac = $('#avoidChip');
@@ -591,6 +596,7 @@ function buildAvoidSliders() {
 }
 $('#chkAvoid').addEventListener('change', (e) => send({ t: 'params', avoid_enabled: e.target.checked }));
 $('#chkDerate').addEventListener('change', (e) => send({ t: 'params', auto_derate: e.target.checked }));
+$('#chkImu').addEventListener('change', (e) => send({ t: 'params', imu_stabilize: e.target.checked }));
 $('#chkMock').addEventListener('change', (e) => send({ t: 'mock_obstacle', on: e.target.checked, dist_mm: 600 }));
 $('#rngSlider').addEventListener('input', (e) => { rangeM = +e.target.value; $('#rngVal').textContent = rangeM.toFixed(1) + ' m'; drawRadar(); });
 

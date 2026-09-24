@@ -83,6 +83,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
     @contextlib.asynccontextmanager
     async def lifespan(app):
         lidar.start()
+        robot.start_imu()
         tasks = [asyncio.create_task(f()) for f in (control_loop, state_loop, scan_loop)]
         yield
         for t in tasks:
@@ -90,6 +91,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
         lidar.stop()
         if battery:
             battery.close()
+        robot.close_imu()
         robot.trigger_estop()
         driver.close()
 

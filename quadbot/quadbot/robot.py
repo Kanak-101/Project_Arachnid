@@ -15,7 +15,9 @@ from . import avoid as avoidmod
 from .battery import make_battery_reader
 from .config import save as save_cfg
 from .gait import GaitEngine, GAITS
+from .imu import MPU6050
 from .kinematics import LegKinematics
+from .pid import PID
 from .servos import AutoDerate, ServoCal, SlewLimiter
 
 MODES = ("calib", "legtest", "rest", "stand", "crawl", "trot")
@@ -42,6 +44,13 @@ class Robot:
         self.neutral_deg = self._ik_targets(self.gait.nominal(cfg["gait"]["height_stand"]))
         self.wave_phase = None
         self.palm_detected = False
+        ic = cfg.get("imu", {})
+        self.imu = MPU6050(ic.get("bus", 1), ic.get("address", 0x68), ic.get("rate_hz", 100), ic.get("filter_alpha", 0.98)) if ic.get("enabled", False) else None
+        self.imu_stabilize = bool(ic.get("stabilize", False))
+        self.imu_max_correction = float(ic.get("max_correction_mm", 20.0))
+        pc = ic.get("pid", {})
+        self.roll_pid = PID(pc.get("kp", 2.0), pc.get("ki", 0.05), pc.get("kd", 0.12), self.imu_max_correction, pc.get("integral_limit", 10.0))
+        self.pitch_pid = PID(pc.get("kp", 2.0), pc.get("ki", 0.05), pc.get("kd", 0.12), self.imu_max_correction, pc.get("integral_limit", 10.0))
         self.avoid = avoidmod.AvoidParams(**cfg.get("avoid", {}))
         c = cfg["control"]
         self.timeout = c["command_timeout_s"]
@@ -66,6 +75,18 @@ class Robot:
         self.notice = ""
         self.tick_ms = 0.0
         self._i2c_errors = 0
+
+    def start_imu(self):
+        if self.imu:
+            self.imu.start()
+
+    def close_imu(self):
+        if self.imu:
+            self.imu.close()
+
+    def reset_imu_pid(self):
+        self.roll_pid.reset()
+        self.pitch_pid.reset()
 
     def _ik_targets(self, feet):
         targets = {}
@@ -271,6 +292,11 @@ class Robot:
             self.auto_derate = bool(msg["auto_derate"])
             if not self.auto_derate:
                 self.derate.scale = 1.0
+        if "imu_stabilize" in msg:
+            self.imu_stabilize = bool(msg["imu_stabilize"])
+            self.cfg.setdefault("imu", {})["stabilize"] = self.imu_stabilize
+            if not self.imu_stabilize:
+                self.reset_imu_pid()
 
     def save(self):
         self.cfg["servos"] = [s.to_dict() for s in self.servos.values()]
@@ -447,6 +473,20 @@ class Robot:
                 else:
                     self.avoid_info = {"state": "off", "front_mm": None, "scale": 1.0}
                 feet = self.gait.update(dt, self.mode, cmd, self.derate.scale)
+                if self.imu and self.imu_stabilize and self.mode in GAITS and self.imu.ready:
+                    roll, pitch = self.imu.attitude()
+                    max_x = max(abs(g["hip_xy"][0]) for g in self.gait.legs.values())
+                    max_y = max(abs(g["hip_xy"][1]) for g in self.gait.legs.values())
+                    roll_correction = self.roll_pid.update(roll, dt)
+                    pitch_correction = self.pitch_pid.update(pitch, dt)
+                    corrected = {}
+                    for leg, (x, y, z) in feet.items():
+                        hx, hy = self.gait.legs[leg]["hip_xy"]
+                        roll_z = roll_correction * (hy / max_y)
+                        pitch_z = pitch_correction * (hx / max_x)
+                        correction = max(-self.imu_max_correction, min(self.imu_max_correction, roll_z + pitch_z))
+                        corrected[leg] = (x, y, z + correction)
+                    feet = corrected
             targets = {}
             for leg, (x, y, z) in feet.items():
                 th1, a, b, ok = self.kin.ik_deg(x, y, z)
@@ -525,4 +565,5 @@ class Robot:
             "tick_ms": round(self.tick_ms, 2),
             "leg_targets": {k: [round(v, 1) for v in t] for k, t in self.leg_targets.items()},
             "battery": self.battery.read() if self.battery else None,
+            "imu": ({"enabled": True, "ready": self.imu.ready, "stabilize": self.imu_stabilize, "roll": round(self.imu.attitude()[0], 2), "pitch": round(self.imu.attitude()[1], 2), "roll_correction": round(self.roll_pid.output, 2), "pitch_correction": round(self.pitch_pid.output, 2), "error": self.imu.error} if self.imu else {"enabled": False, "stabilize": False}),
         }
