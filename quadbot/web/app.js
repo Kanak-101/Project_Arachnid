@@ -351,8 +351,8 @@ function readPad() {
   };
 
   // --- Button 3 (Y / Triangle): Mode Cycle Button ---
-  // Cycles smoothly: Stand -> Crawl -> Trot -> Dance -> Rest -> Stand
-  const MODES_CYCLE = ['stand', 'crawl', 'trot', 'dance', 'rest'];
+  // Cycles smoothly: Stand -> Trot -> Crawl -> Pace -> Dance -> Rest -> Stand
+  const MODES_CYCLE = ['stand', 'trot', 'crawl', 'pace', 'dance', 'rest'];
   if (edge(3)) {
     const curMode = st?.mode || 'stand';
     const curIdx = MODES_CYCLE.indexOf(curMode);
@@ -360,17 +360,17 @@ function readPad() {
     setModeFromPad(nextMode, `Mode: ${nextMode.toUpperCase()} 🔄`);
   }
 
-  // --- Button 0 (A / Cross): Stand Pose / Center ---
+  // --- Button 0 (A / Cross): Stand Pose (Neutral stance) ---
   if (edge(0)) {
-    setModeFromPad('stand', 'Stand Pose');
+    setModeFromPad('stand', 'Stand Pose 🚶');
   }
 
-  // --- Button 1 (B / Circle): Crab Dance (Side-to-Side Dip) ---
+  // --- Button 1 (B / Circle): Rest Pose (Sit Down) ---
   if (edge(1)) {
-    triggerActionFromPad('crab', 'Crab Dance 🦀');
+    setModeFromPad('rest', 'Rest (Sit Down) 🧎');
   }
 
-  // --- Button 2 (X / Square): High-Five Wave ---
+  // --- Button 2 (X / Square): High Paw Wave ---
   if (edge(2)) {
     triggerActionFromPad('wave', 'High Paw Wave 👋');
   }
@@ -385,15 +385,25 @@ function readPad() {
     triggerActionFromPad('wiggle', 'Butt Wiggle 🐕');
   }
 
+  // --- Triggers ---
+  // Button 6 (LT): Crab Dance (Side-to-Side Dip)
+  if (edge(6)) {
+    triggerActionFromPad('crab', 'Crab Dance 🦀');
+  }
+  // Button 7 (RT): Curious Peek
+  if (edge(7)) {
+    triggerActionFromPad('peek', 'Curious Peek 👀');
+  }
+
   // --- Stick Clicks ---
   // Button 10 (L3 Stick Click): Immediate Emergency Stop
   if (edge(10)) {
     send({ t: 'estop' });
     showNotice('🚨 Gamepad: E-STOP Triggered!', true);
   }
-  // Button 11 (R3 Stick Click): Curious Peek
+  // Button 11 (R3 Stick Click): Break Dance Shake
   if (edge(11)) {
-    triggerActionFromPad('peek', 'Curious Peek 👀');
+    triggerActionFromPad('shake', 'Break Dance Shake ⚡');
   }
 
   // --- System Buttons ---
@@ -811,6 +821,113 @@ $('#btnEnableSingleServo')?.addEventListener('click', () => {
     send({ t: 'enable_only', id: sid });
   }
 });
+
+/* ------------------------------------------------------------------ IMU Calibration Modal */
+let imuCalCurrentStep = 'idle';
+
+function openImuCal() {
+  const modal = $('#imuCalModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    fetch('/api/imu/calibrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step: 'start' })
+    })
+      .then(r => r.json())
+      .then(updateImuCalUI)
+      .catch(console.error);
+  }
+}
+
+function closeImuCal() {
+  const modal = $('#imuCalModal');
+  if (modal) {
+    modal.style.display = 'none';
+    fetch('/api/imu/calibrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step: 'cancel' })
+    }).catch(() => {});
+  }
+}
+
+function updateImuCalUI(calState) {
+  if (!calState) return;
+  imuCalCurrentStep = calState.step || 'idle';
+  const title = $('#imuCalStepTitle');
+  const instr = $('#imuCalInstruction');
+  const btn = $('#btnImuCalAction');
+  const res = $('#imuCalResults');
+  const mappingText = $('#imuCalMappingText');
+  const offsetsText = $('#imuCalOffsetsText');
+
+  if (calState.step === 'level') {
+    if (title) title.textContent = 'Step 1: Level Flat';
+    if (instr) instr.textContent = 'Place the robot on a level flat surface and hold still.';
+    if (btn) { btn.textContent = 'Sample Level Posture'; btn.disabled = false; }
+    if (res) res.style.display = 'none';
+  } else if (calState.step === 'tilt_forward') {
+    if (title) title.textContent = 'Step 2: Tilt Forward (Nose Down)';
+    if (instr) instr.textContent = 'Tilt the robot forward (front legs lower / nose down) by 20° to 45°, hold still, and click below.';
+    if (btn) { btn.textContent = 'Sample Forward Posture'; btn.disabled = false; }
+    if (res) res.style.display = 'none';
+  } else if (calState.step === 'tilt_left') {
+    if (title) title.textContent = 'Step 3: Tilt Left (Left Down)';
+    if (instr) instr.textContent = 'Tilt the robot to the left (left legs lower / banking left) by 20° to 45°, hold still, and click below.';
+    if (btn) { btn.textContent = 'Sample Left Posture'; btn.disabled = false; }
+    if (res) res.style.display = 'none';
+  } else if (calState.step === 'done') {
+    if (title) title.textContent = '✅ Calibration Complete!';
+    if (instr) instr.textContent = calState.msg || 'Orientation and offsets successfully saved to robot.yaml.';
+    if (btn) { btn.textContent = 'Done (Close)'; btn.disabled = false; }
+    if (res) {
+      res.style.display = 'block';
+      if (calState.axis_map) {
+        const m = calState.axis_map;
+        const fmt = (entry) => `${entry[1] > 0 ? '+' : '-'}${String(entry[0]).toUpperCase()}`;
+        if (mappingText) mappingText.textContent = `Forward: ${fmt(m.forward)} | Left: ${fmt(m.left)} | Up: ${fmt(m.up)}`;
+      }
+      if (calState.offsets && offsetsText) {
+        offsetsText.textContent = `Zero Offsets: Roll ${calState.offsets.roll_deg}° | Pitch ${calState.offsets.pitch_deg}°`;
+      }
+    }
+  }
+}
+
+function handleImuCalAction() {
+  const btn = $('#btnImuCalAction');
+  if (btn) btn.disabled = true;
+
+  let nextAction = 'sample_level';
+  if (imuCalCurrentStep === 'level') nextAction = 'sample_level';
+  else if (imuCalCurrentStep === 'tilt_forward') nextAction = 'sample_forward';
+  else if (imuCalCurrentStep === 'tilt_left') nextAction = 'sample_left';
+  else if (imuCalCurrentStep === 'done') {
+    closeImuCal();
+    return;
+  }
+
+  fetch('/api/imu/calibrate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step: nextAction })
+  })
+    .then(r => r.json())
+    .then(data => {
+      updateImuCalUI(data);
+      if (data.msg) showNotice(data.msg);
+    })
+    .catch(err => {
+      console.error(err);
+      if (btn) btn.disabled = false;
+    });
+}
+
+$('#btnImuCalOpen')?.addEventListener('click', openImuCal);
+$('#btnImuCalClose')?.addEventListener('click', closeImuCal);
+$('#btnImuCalCancel')?.addEventListener('click', closeImuCal);
+$('#btnImuCalAction')?.addEventListener('click', handleImuCalAction);
 
 connect();
 

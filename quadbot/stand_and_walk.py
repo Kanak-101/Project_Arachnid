@@ -38,29 +38,29 @@ import signal
 # ==============================================================================
 
 BOARDS = {
-    "left":  {"bus": 1, "address": 0x50},  # Front-Left & Rear-Left
-    "right": {"bus": 1, "address": 0x40},  # Front-Right & Rear-Right
+    "left":  {"bus": 1, "address": 0x50},  # Front-Right & Rear-Right
+    "right": {"bus": 1, "address": 0x40},  # Front-Left & Rear-Left
 }
 
-# Calibrated limits from Servo Calibration (2).xlsx
+# Calibrated limits from Servo Calibration (2).xlsx / robot.yaml
 SERVOS = {
-    # Left Board (0x50)
-    "FL_coxa":  {"board": "left",  "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "FL_femur": {"board": "left",  "ch": 1, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
-    "FL_tibia": {"board": "left",  "ch": 2, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
+    # Right Board (0x40): FL (ch 3,4,5) and RL (ch 0,1,2)
+    "FL_coxa":  {"board": "right", "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "FL_femur": {"board": "right", "ch": 4, "model": "MG958",  "min": 620, "max": 2500, "center": 2039},
+    "FL_tibia": {"board": "right", "ch": 5, "model": "MG958",  "min": 717, "max": 2477, "center": 1589},
 
-    "RL_coxa":  {"board": "left",  "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "RL_femur": {"board": "left",  "ch": 4, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
-    "RL_tibia": {"board": "left",  "ch": 5, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
+    "RL_coxa":  {"board": "right", "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "RL_femur": {"board": "right", "ch": 1, "model": "MG995",  "min": 832, "max": 2500, "center": 2122},
+    "RL_tibia": {"board": "right", "ch": 2, "model": "MG995",  "min": 547, "max": 2500, "center": 1485},
 
-    # Right Board (0x40)
-    "FR_coxa":  {"board": "right", "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "FR_femur": {"board": "right", "ch": 1, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
-    "FR_tibia": {"board": "right", "ch": 2, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
+    # Left Board (0x50): FR (ch 3,4,5) and RR (ch 0,1,2)
+    "FR_coxa":  {"board": "left",  "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "FR_femur": {"board": "left",  "ch": 4, "model": "MG996R", "min": 715, "max": 2484, "center": 1938},
+    "FR_tibia": {"board": "left",  "ch": 5, "model": "MG996R", "min": 722, "max": 2500, "center": 1596},
 
-    "RR_coxa":  {"board": "right", "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "RR_femur": {"board": "right", "ch": 4, "model": "MG996R", "min": 500, "max": 2500, "center": 1500},
-    "RR_tibia": {"board": "right", "ch": 5, "model": "MG996R", "min": 750, "max": 2250, "center": 1500},
+    "RR_coxa":  {"board": "left",  "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "RR_femur": {"board": "left",  "ch": 1, "model": "MG996R", "min": 731, "max": 2500, "center": 2063},
+    "RR_tibia": {"board": "left",  "ch": 2, "model": "MG996R", "min": 601, "max": 2486, "center": 1582},
 }
 
 # Diagonal pairs for 2-leg locomotion (Trot Gait)

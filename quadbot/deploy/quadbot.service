@@ -1,14 +1,25 @@
-# sudo cp deploy/quadbot.service /etc/systemd/system/ && sudo systemctl enable --now quadbot
-# Edit User and the paths to match your Pi.
+# System-wide systemd service for Project Arachnid (Quadbot)
+# Installation:
+#   sudo cp deploy/quadbot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now quadbot
+#
+# Note: Because this service points directly to run_server.py, all code changes
+# take effect immediately upon server restart without rebuilding any packages.
+
 [Unit]
-Description=quadbot dashboard and control loop
+Description=Project Arachnid (Quadbot) Server & Control Loop
 After=network.target
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi/quadbot
-ExecStart=/home/pi/quadbot/.venv/bin/python -m quadbot.server --config config/robot.yaml --host 0.0.0.0 --port 8000
+Type=simple
+User=tron
+WorkingDirectory=/mnt/Kanak/Project Arachnid/quadbot
+ExecStart=/mnt/Kanak/Project Arachnid/quadbot/.venv/bin/python /mnt/Kanak/Project Arachnid/quadbot/run_server.py --config config/robot.yaml --host 0.0.0.0 --port 8000
 Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

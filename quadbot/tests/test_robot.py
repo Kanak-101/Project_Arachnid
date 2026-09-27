@@ -55,14 +55,15 @@ def test_nothing_is_written_while_disarmed():
 def test_enable_writes_centre_pulse_and_jogs_are_clamped():
     r, d = make()
     r.arm(True)
+    s = r.servos["FL_coxa"]
     r.enable_servo("FL_coxa", True)
     r.tick(0.02)
-    assert d.pulses[0] == 1500
+    assert d.pulses[(s.board, s.channel)] == 1500
     r.handle({"t": "servo_us", "id": "FL_coxa", "us": 99999})
     r.tick(0.02)
-    assert d.pulses[0] < 1600                     # ramps toward the target instead of jumping
+    assert d.pulses[(s.board, s.channel)] < 1600                     # ramps toward the target instead of jumping
     run(r, 2.0)
-    assert d.pulses[0] == 2500                    # capped at pulse_abs_max
+    assert d.pulses[(s.board, s.channel)] == 2500                    # capped at pulse_abs_max
 
 
 def test_only_enabled_servos_get_pulses():
@@ -137,13 +138,14 @@ def test_scale_calibration_at_center_is_rejected():
 def test_sweep_visits_both_limits_and_finishes():
     r, d = make()
     r.arm(True)
+    s = r.servos["FL_coxa"]
     r.enable_servo("FL_coxa", True)
     r.handle({"t": "servo_sweep", "id": "FL_coxa"})
     seen = []
     for _ in range(int(60 / 0.02)):
         r.clock.t += 0.02
         r.tick(0.02)
-        seen.append(d.pulses[0])
+        seen.append(d.pulses[(s.board, s.channel)])
         if r.sweep is None:
             break
     assert r.sweep is None
@@ -398,6 +400,39 @@ def test_robot_actions():
     run(r, 6.5, dt=0.05)
     assert r.active_action is None
     assert r.mode == "stand"
+
+
+def test_robot_boots_into_rest_mode():
+    cfg = config.load(CFG_PATH)
+    r = Robot(cfg, CFG_PATH, MockDriver(), StubLidar(), clock=FakeClock(), initial_mode="rest")
+    assert r.mode == "rest"
+    st = r.state_message()
+    assert st["mode"] == "rest"
+
+
+def test_imu_calibration_sequence(tmp_path):
+    r, _ = make(tmp_path)
+    s0 = r.step_imu_cal("start")
+    assert s0["step"] == "level"
+    assert "level" in s0["msg"].lower()
+
+    s1 = r.step_imu_cal("sample_level")
+    assert s1["step"] == "tilt_forward"
+    assert "up" in r.imu_cal_state
+
+    s2 = r.step_imu_cal("sample_forward")
+    assert s2["step"] == "tilt_left"
+    assert "forward" in r.imu_cal_state
+
+    s3 = r.step_imu_cal("sample_left")
+    assert s3["step"] == "done"
+    assert s3["axis_map"] is not None
+    assert s3["offsets"] is not None
+
+    saved_cfg = config.load(tmp_path / "robot.yaml")
+    assert "imu" in saved_cfg
+    assert "axis_map" in saved_cfg["imu"]
+    assert "offsets" in saved_cfg["imu"]
 
 
 

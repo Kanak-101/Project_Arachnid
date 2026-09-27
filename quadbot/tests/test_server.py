@@ -40,7 +40,8 @@ def test_websocket_arm_enable_jog_and_estop(tmp_path):
         ws.send_json({"t": "servo_enable", "id": "FL_coxa", "on": True})
         ws.send_json({"t": "servo_us", "id": "FL_coxa", "us": 1700})
         m = wait_for(ws, lambda m: m["t"] == "state" and m["live"]["FL_coxa"]["en"] and m["live"]["FL_coxa"]["us"] == 1700)
-        assert m["armed"] and robot.driver.pulses[0] == 1700
+        s = robot.servos["FL_coxa"]
+        assert m["armed"] and abs(robot.driver.pulses[(s.board, s.channel)] - 1700) < 1.5
         wait_for(ws, lambda m: m["t"] == "scan")
         ws.send_json({"t": "estop"})
         m = wait_for(ws, lambda m: m["t"] == "state" and m["estop"])

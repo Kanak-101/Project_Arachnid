@@ -66,7 +66,7 @@ def test_trot_lifts_diagonal_pairs():
 def test_stance_feet_slide_backward_when_walking_forward():
     g, frames = run("crawl", (1, 0, 0), seconds=10)
     ys = [f[0]["FL"][1] for f in frames if "FL" not in f[1]]
-    diffs = [b - a for a, b in zip(ys, ys[1:]) if abs(b - a) < 5]
+    diffs = [b - a for a, b in zip(ys, ys[1:]) if abs(b - a) < 15]
     assert sum(1 for d in diffs if d < 0) > 0.9 * len(diffs)
 
 
@@ -104,3 +104,19 @@ def test_feet_settle_when_command_stops():
         feet = g.update(DT, "crawl", (0, 0, 0))
     for leg, (x, y, z) in feet.items():
         assert abs(z + g.height) < 3.0 and abs(y) < 3.0
+
+
+def test_dynamic_speed_scaling_slows_cadence_at_low_deflection():
+    g_slow = GaitEngine(CFG)
+    g_fast = GaitEngine(CFG)
+    for _ in range(50):
+        g_slow.update(DT, "crawl", (0.25, 0, 0))
+        g_fast.update(DT, "crawl", (1.0, 0, 0))
+    phase_slow_start = g_slow.phase
+    phase_fast_start = g_fast.phase
+    for _ in range(5):
+        g_slow.update(DT, "crawl", (0.25, 0, 0))
+        g_fast.update(DT, "crawl", (1.0, 0, 0))
+    d_slow = (g_slow.phase - phase_slow_start) % 1.0
+    d_fast = (g_fast.phase - phase_fast_start) % 1.0
+    assert d_slow < d_fast * 0.5, f"Expected slow cadence ({d_slow}) < fast cadence ({d_fast})"

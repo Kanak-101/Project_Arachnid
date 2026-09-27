@@ -27,7 +27,7 @@ CAL_FIELDS = ("channel", "board", "us_per_deg", "max_speed_dps", "deg_min", "deg
 
 
 class Robot:
-    def __init__(self, cfg, cfg_path, driver, lidar, clock=time.monotonic, battery=None):
+    def __init__(self, cfg, cfg_path, driver, lidar, clock=time.monotonic, battery=None, initial_mode=None):
         self.clock = clock                  # injectable so tests can fast-forward the watchdog
         self.cfg, self.cfg_path = cfg, cfg_path
         self.driver, self.lidar = driver, lidar
@@ -35,7 +35,7 @@ class Robot:
         has_dual = "boards" in cfg.get("pca9685", {})
         for s in cfg.get("servos", []):
             if "board" not in s and has_dual:
-                s["board"] = "left" if s.get("leg") in ("FL", "RL") else "right"
+                s["board"] = "right" if s.get("leg") in ("FL", "RL") else "left"
         self.servos = {s["id"]: ServoCal.from_dict(s) for s in cfg["servos"]}
         g = cfg["geometry"]
         self.kin = LegKinematics(g["coxa"], g["femur"], g["tibia"])
@@ -51,10 +51,22 @@ class Robot:
         self.wave_phase = None
         self.palm_detected = False
         ic = cfg.get("imu", {})
-        self.imu = MPU6050(ic.get("bus", 1), ic.get("address", 0x68), ic.get("rate_hz", 100), ic.get("filter_alpha", 0.98)) if ic.get("enabled", False) else None
+        self.imu = (
+            MPU6050(
+                bus_num=ic.get("bus", 1),
+                address=ic.get("address", 0x68),
+                rate_hz=ic.get("rate_hz", 100),
+                alpha=ic.get("filter_alpha", 0.98),
+                axis_map=ic.get("axis_map"),
+                offsets=ic.get("offsets"),
+            )
+            if ic.get("enabled", False)
+            else None
+        )
         self.imu_stabilize = bool(ic.get("stabilize", False))
         self.imu_max_correction = float(ic.get("max_correction_mm", 8.0))
         self.imu_deadband = float(ic.get("deadband_deg", 1.8))
+        self.imu_cal_state = {"step": "idle", "samples": {}, "msg": "", "axis_map": None, "offsets": None}
         pc = ic.get("pid", {})
         self.roll_pid = PID(pc.get("kp", 0.35), pc.get("ki", 0.0), pc.get("kd", 0.015), self.imu_max_correction, pc.get("integral_limit", 4.0))
         self.pitch_pid = PID(pc.get("kp", 0.35), pc.get("ki", 0.0), pc.get("kd", 0.015), self.imu_max_correction, pc.get("integral_limit", 4.0))
@@ -68,7 +80,7 @@ class Robot:
         self.sweep_rate = c.get("sweep_rate_us_s", 300)
         self.jog_rate = c.get("jog_rate_us_s", 1200)     # calibration pulses ramp at this speed, never jump
 
-        self.mode = "calib"
+        self.mode = initial_mode or cfg.get("control", {}).get("default_mode", "calib")
         self.armed = False
         self.estop = False
         self.enabled = set()
@@ -76,13 +88,14 @@ class Robot:
         self.manual_target = dict(self.manual_us)                                  # where the dashboard wants it
         self.out_us = {}                    # last pulse written per servo
         self.cmd, self.cmd_t = (0.0, 0.0, 0.0), 0.0
-        self.leg_targets = self.gait.nominal(cfg["gait"]["height_stand"])
+        h = cfg["gait"]["height_rest"] if self.mode == "rest" else cfg["gait"]["height_stand"]
+        self.leg_targets = self.gait.nominal(h)
         self.sweep = None
         self.auto_derate = True
         self.avoid_info = {"state": "off", "front_mm": None, "scale": 1.0}
         self.reach_ok = {leg: True for leg in cfg["legs"]}
         self.cal_version = 1
-        self.notice = ""
+        self.notice = "Ready at rest pose" if self.mode == "rest" else ""
         self.tick_ms = 0.0
         self._i2c_errors = 0
 
@@ -100,6 +113,145 @@ class Robot:
         self._roll_corr_smooth = 0.0
         self._pitch_corr_smooth = 0.0
 
+    def start_imu_cal(self):
+        self.imu_cal_state = {
+            "step": "level",
+            "samples": {},
+            "msg": "Step 1: Place robot flat on a level surface, keep still, and click 'Sample Level'.",
+            "axis_map": None,
+            "offsets": None,
+            "error": None,
+        }
+        return dict(self.imu_cal_state)
+
+    def get_imu_cal_status(self):
+        return dict(self.imu_cal_state)
+
+    def step_imu_cal(self, action: str = "start"):
+        if action == "start":
+            return self.start_imu_cal()
+        if action == "cancel":
+            self.imu_cal_state = {
+                "step": "idle",
+                "samples": {},
+                "msg": "IMU calibration cancelled.",
+                "axis_map": None,
+                "offsets": None,
+                "error": None,
+            }
+            return dict(self.imu_cal_state)
+
+        # Obtain sample reading
+        if self.imu and self.imu.ready:
+            (ax, ay, az), _ = self.imu.sample_average(duration_s=0.5, count=25)
+        else:
+            # Deterministic simulated samples for tests / laptop mode:
+            if action == "sample_level":
+                ax, ay, az = 0.02, -0.01, 0.99
+            elif action == "sample_forward":
+                ax, ay, az = 0.48, -0.01, 0.88
+            elif action == "sample_left":
+                ax, ay, az = 0.02, -0.47, 0.88
+            else:
+                ax, ay, az = 0.0, 0.0, 1.0
+
+        sample_vec = {"x": round(ax, 3), "y": round(ay, 3), "z": round(az, 3)}
+
+        if action == "sample_level":
+            # The sensor axis with largest absolute value is the UP axis (against gravity)
+            up_axis = max(["x", "y", "z"], key=lambda k: abs(sample_vec[k]))
+            up_sign = 1 if sample_vec[up_axis] > 0 else -1
+            self.imu_cal_state["samples"]["level"] = sample_vec
+            self.imu_cal_state["up"] = (up_axis, up_sign)
+            self.imu_cal_state["step"] = "tilt_forward"
+            self.imu_cal_state["msg"] = "Level posture captured. Step 2: Tilt robot FORWARD (nose down) 20° to 45°, hold still, and click 'Sample Forward'."
+            self.imu_cal_state["error"] = None
+            return dict(self.imu_cal_state)
+
+        elif action == "sample_forward":
+            if "level" not in self.imu_cal_state.get("samples", {}) or "up" not in self.imu_cal_state:
+                self.imu_cal_state["error"] = "Must sample level posture first."
+                return dict(self.imu_cal_state)
+            level = self.imu_cal_state["samples"]["level"]
+            up_axis, up_sign = self.imu_cal_state["up"]
+            delta = {k: sample_vec[k] - level[k] for k in ["x", "y", "z"]}
+            candidates = [k for k in ["x", "y", "z"] if k != up_axis]
+            fwd_axis = max(candidates, key=lambda k: abs(delta[k]))
+            fwd_sign = 1 if delta[fwd_axis] > 0 else -1
+
+            self.imu_cal_state["samples"]["forward"] = sample_vec
+            self.imu_cal_state["forward"] = (fwd_axis, fwd_sign)
+            self.imu_cal_state["step"] = "tilt_left"
+            self.imu_cal_state["msg"] = "Forward posture captured. Step 3: Tilt robot to the LEFT (left side down) 20° to 45°, hold still, and click 'Sample Left'."
+            self.imu_cal_state["error"] = None
+            return dict(self.imu_cal_state)
+
+        elif action == "sample_left":
+            if "level" not in self.imu_cal_state.get("samples", {}) or "forward" not in self.imu_cal_state:
+                self.imu_cal_state["error"] = "Must sample level and forward postures first."
+                return dict(self.imu_cal_state)
+            level = self.imu_cal_state["samples"]["level"]
+            up_axis, up_sign = self.imu_cal_state["up"]
+            fwd_axis, fwd_sign = self.imu_cal_state["forward"]
+
+            # Mathematical right-handed orthonormal coordinate frame:
+            # Robot Z is Up, X is Forward, Y is Left.
+            # Z x X = Y
+            def to_vec(axis, sign):
+                return [sign if k == axis else 0 for k in ("x", "y", "z")]
+
+            u_vec = to_vec(up_axis, up_sign)
+            f_vec = to_vec(fwd_axis, fwd_sign)
+            l_vec = [
+                u_vec[1]*f_vec[2] - u_vec[2]*f_vec[1],
+                u_vec[2]*f_vec[0] - u_vec[0]*f_vec[2],
+                u_vec[0]*f_vec[1] - u_vec[1]*f_vec[0],
+            ]
+            axes = ("x", "y", "z")
+            calc_left_axis = max(axes, key=lambda k: abs(l_vec[axes.index(k)]))
+            calc_left_sign = 1 if l_vec[axes.index(calc_left_axis)] > 0 else -1
+
+            axis_map = {
+                "forward": [fwd_axis, fwd_sign],
+                "left": [calc_left_axis, calc_left_sign],
+                "up": [up_axis, up_sign],
+            }
+
+            # Calculate zero roll and pitch offsets from the level sample
+            r_ax = level[fwd_axis] * fwd_sign
+            r_ay = level[calc_left_axis] * calc_left_sign
+            r_az = level[up_axis] * up_sign
+            roll_offset = math.degrees(math.atan2(r_ay, r_az))
+            pitch_offset = math.degrees(math.atan2(-r_ax, math.hypot(r_ay, r_az)))
+
+            offsets = {
+                "roll_deg": round(roll_offset, 2),
+                "pitch_deg": round(pitch_offset, 2),
+            }
+
+            self.cfg.setdefault("imu", {})
+            self.cfg["imu"]["enabled"] = True
+            self.cfg["imu"]["axis_map"] = axis_map
+            self.cfg["imu"]["offsets"] = offsets
+            save_cfg(self.cfg, self.cfg_path)
+
+            if self.imu:
+                self.imu.update_config(axis_map, offsets)
+            self.reset_imu_pid()
+
+            self.imu_cal_state["step"] = "done"
+            self.imu_cal_state["axis_map"] = axis_map
+            self.imu_cal_state["offsets"] = offsets
+            self.imu_cal_state["error"] = None
+            self.imu_cal_state["msg"] = (
+                f"IMU calibration saved to robot.yaml! Forward: {fwd_axis} ({fwd_sign:+d}), "
+                f"Left: {calc_left_axis} ({calc_left_sign:+d}), Up: {up_axis} ({up_sign:+d}). "
+                f"Level Offsets: Roll {offsets['roll_deg']}°, Pitch {offsets['pitch_deg']}°."
+            )
+            self.notice = "IMU orientation calibrated"
+            return dict(self.imu_cal_state)
+
+        return dict(self.imu_cal_state)
 
     def _ik_targets(self, feet):
         targets = {}
@@ -119,7 +271,7 @@ class Robot:
         if not self.armed:
             self._release_all()
         else:
-            if self.mode in ("stand", "crawl", "trot") and not self.enabled:
+            if self.mode in ("stand", "crawl", "trot", "rest") and not self.enabled:
                 self.enable_servo("all", True)
                 self.notice = f"Armed: All 12 servos active for {self.mode}"
             else:
@@ -375,6 +527,8 @@ class Robot:
             self.palm_detected = detected
         elif t == "action":
             self.trigger_action(msg.get("action"))
+        elif t == "imu_cal":
+            self.step_imu_cal(msg.get("step", "start"))
 
     def trigger_action(self, action_name):
         if not action_name:
@@ -664,4 +818,5 @@ class Robot:
             "leg_targets": {k: [round(v, 1) for v in t] for k, t in self.leg_targets.items()},
             "battery": self.battery.read() if self.battery else None,
             "imu": ({"enabled": True, "ready": self.imu.ready, "stabilize": self.imu_stabilize, "roll": round(self.imu.attitude()[0], 2), "pitch": round(self.imu.attitude()[1], 2), "roll_correction": round(self.roll_pid.output, 2), "pitch_correction": round(self.pitch_pid.output, 2), "error": self.imu.error} if self.imu else {"enabled": False, "stabilize": False}),
+            "imu_cal": dict(self.imu_cal_state),
         }

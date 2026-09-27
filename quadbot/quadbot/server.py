@@ -32,7 +32,7 @@ log = logging.getLogger("quadbot")
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False):
+def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False, initial_mode=None):
     cfg_path = Path(cfg_path or ROOT / "config" / "robot.yaml")
     cfg = cfgmod.load(cfg_path)
     if demo:
@@ -43,7 +43,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
     driver = driver or make_driver(cfg)
     lidar = lidar or make_lidar(cfg)
     battery = battery or make_battery_reader(cfg)
-    robot = Robot(cfg, cfg_path, driver, lidar, battery=battery)
+    robot = Robot(cfg, cfg_path, driver, lidar, battery=battery, initial_mode=initial_mode)
     clients = set()
     rate = cfg["control"]["rate_hz"]
 
@@ -115,6 +115,17 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
         robot.handle({"t": "action", "action": action})
         return {"ok": True, "action": action, "active": robot.active_action or robot.mode}
 
+    @app.post("/api/imu/calibrate")
+    async def imu_calibrate_endpoint(request: Request):
+        payload = await request.json()
+        step = payload.get("step", "start")
+        res = robot.step_imu_cal(step)
+        return JSONResponse(res)
+
+    @app.get("/api/imu/calibrate")
+    def imu_calibrate_status():
+        return JSONResponse(robot.get_imu_cal_status())
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
@@ -125,6 +136,9 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False)
                 msg = json.loads(await ws.receive_text())
                 if msg.get("t") == "get_cal":
                     await ws.send_text(json.dumps(robot.cal_message()))
+                elif msg.get("t") == "imu_cal":
+                    res = robot.step_imu_cal(msg.get("step", "start"))
+                    await ws.send_text(json.dumps({"t": "imu_cal_status", **res}))
                 else:
                     try:
                         robot.handle(msg)
@@ -148,10 +162,10 @@ def main():
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--demo", action="store_true", help="Use mock servos, lidar, and battery")
+    ap.add_argument("--mode", default=None, help="Initial robot mode on boot (e.g. rest)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO)
-    uvicorn.run(create_app(args.config, demo=args.demo), host=args.host, port=args.port, log_level="info")
-    uvicorn.run(create_app(args.config), host=args.host, port=args.port, log_level="info")
+    uvicorn.run(create_app(args.config, demo=args.demo, initial_mode=args.mode), host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":

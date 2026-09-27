@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>quadbot bench console</title>
+<title>quadbot - Project Arachnid Console</title>
 <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
@@ -14,7 +14,7 @@
 <header class="bar">
   <div class="brand">
     <span id="conn" class="dot" title="connection"></span>
-    <b>quadbot</b>
+    <b>quadbot</b> <span style="font-weight:normal;opacity:0.85">| Project Arachnid</span>
     <span id="modeChip" class="chip">calib</span>
     <span id="servoBadge" class="chip servo-badge" title="Active servos">0/12 servos</span>
     <span id="batteryBadge" class="chip battery-badge" title="2S Battery Level">
@@ -257,7 +257,10 @@
     <label class="check"><input type="checkbox" id="chkAvoid"> Obstacle avoidance</label>
     <label class="check"><input type="checkbox" id="chkDerate"> Auto-slow when a servo can't keep up</label>
     <label class="check"><input type="checkbox" id="chkImu"> IMU stabilization</label>
-    <small id="imuStatus">IMU disabled</small>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+      <small id="imuStatus">IMU disabled</small>
+      <button id="btnImuCalOpen" type="button" class="chip" style="cursor:pointer; background:#0284c7; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px;">🧭 Calibrate IMU</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -350,6 +353,39 @@
     <p class="hint">Tapping the map marks a spot and shows its range and bearing. Click-to-go (driving there) arrives in the next drop.</p>
   </div>
 </section>
+
+<!-- IMU 3D Orientation Calibration Modal -->
+<div id="imuCalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#1e293b; color:#f8fafc; border-radius:12px; padding:20px; max-width:440px; width:92%; box-shadow:0 12px 30px rgba(0,0,0,0.6); border:1px solid #334155;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0; font-size:16px;">🧭 IMU Orientation Calibration</h3>
+      <button id="btnImuCalClose" type="button" style="background:none; border:none; color:#94a3b8; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+    </div>
+    <p style="font-size:12px; color:#cbd5e1; margin:0 0 14px 0; line-height:1.4;">
+      Deduces the mounting orientation of the MPU-6050 sensor by sampling postures and calculates zero-tilt offsets.
+    </p>
+
+    <div id="imuCalStepBox" style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155; margin-bottom:14px;">
+      <div id="imuCalStepTitle" style="font-weight:bold; color:#38bdf8; font-size:13px; margin-bottom:6px;">Step 1: Level Flat</div>
+      <div id="imuCalInstruction" style="font-size:12px; color:#e2e8f0; margin-bottom:12px; line-height:1.3;">Place the robot flat on a level table, hold it still, then click below.</div>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; margin-bottom:12px;">
+        <span>Live Roll: <b id="imuLiveRoll" style="color:#e2e8f0;">0.0°</b></span>
+        <span>Live Pitch: <b id="imuLivePitch" style="color:#e2e8f0;">0.0°</b></span>
+      </div>
+      <button id="btnImuCalAction" type="button" style="width:100%; background:#0284c7; color:#fff; font-weight:bold; font-size:13px; padding:10px; border:none; border-radius:6px; cursor:pointer;">Sample Level Posture</button>
+    </div>
+
+    <div id="imuCalResults" style="display:none; background:#0f172a; padding:10px; border-radius:6px; font-size:11px; color:#94a3b8; border:1px solid #334155; margin-bottom:14px;">
+      <div style="color:#4ade80; font-weight:bold; margin-bottom:4px;">Orientation Deduced:</div>
+      <div id="imuCalMappingText">Forward: +X | Left: +Y | Up: +Z</div>
+      <div id="imuCalOffsetsText" style="margin-top:2px;">Offsets: Roll 0.0° | Pitch 0.0°</div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button id="btnImuCalCancel" type="button" style="background:#334155; color:#cbd5e1; border:none; padding:7px 14px; border-radius:6px; font-size:12px; cursor:pointer;">Close</button>
+    </div>
+  </div>
+</div>
 
 </main>
 <script src="app.js?v=3"></script>

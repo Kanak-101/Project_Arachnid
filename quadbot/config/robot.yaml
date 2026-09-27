@@ -33,46 +33,68 @@ legs:
     hip_xy: [-90, -60]
     side: -1
     gamma: -135
-gait: {height_stand: 97.0, height_rest: 129.0, stance_reach: 116.0, step_len: 35.0,
+gait: {height_stand: 97.0, height_rest: 46.0, stance_reach: 116.0, step_len: 35.0,
   stride_scale: 2.0, step_speed: 1.5, coxa_gain: 1.5, step_height: 35.0, lift_scale: 2.0,
   yaw_step_deg: 20.0, turn_scale: 0.8, freq_hz: 1.35, speed_scale: 1.5, duty_crawl: 0.75,
   duty_trot: 0.5}
 avoid: {enabled: true, stop_mm: 350, slow_mm: 900, arc_deg: 35, min_range_mm: 120,
   turn_gain: 0.8, max_age_s: 0.6}
 servos:
-- {id: FL_coxa, leg: FL, joint: coxa, model: MG958, channel: 0, us_min: 500, us_max: 2500,
+- {id: FL_coxa, leg: FL, joint: coxa, model: MG958, channel: 3, us_min: 500, us_max: 2500,
   us_center: 1500, us_per_deg: 11.11, invert: true, max_speed_dps: 70, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: FL_femur, leg: FL, joint: femur, model: MG958, channel: 1, us_min: 620, us_max: 2500.0,
+  deg_max: 90.0, board: right}
+- {id: FL_femur, leg: FL, joint: femur, model: MG958, channel: 4, us_min: 620, us_max: 2500.0,
   us_center: 2039.0, us_per_deg: 9.78, invert: true, max_speed_dps: 100, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: FL_tibia, leg: FL, joint: tibia, model: MG958, channel: 2, us_min: 717.0, us_max: 2477.0,
+  deg_max: 90.0, board: right}
+- {id: FL_tibia, leg: FL, joint: tibia, model: MG958, channel: 5, us_min: 717.0, us_max: 2477.0,
   us_center: 1589.0, us_per_deg: 9.78, invert: true, max_speed_dps: 100, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: RL_coxa, leg: RL, joint: coxa, model: MG958, channel: 3, us_min: 500, us_max: 2500,
+  deg_max: 90.0, board: right}
+- {id: RL_coxa, leg: RL, joint: coxa, model: MG958, channel: 0, us_min: 500, us_max: 2500,
   us_center: 1500, us_per_deg: 11.11, invert: true, max_speed_dps: 70, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: RL_femur, leg: RL, joint: femur, model: MG995, channel: 4, us_min: 832.0, us_max: 2500.0,
+  deg_max: 90.0, board: right}
+- {id: RL_femur, leg: RL, joint: femur, model: MG995, channel: 1, us_min: 832.0, us_max: 2500.0,
   us_center: 2122.0, us_per_deg: 10.0, invert: true, max_speed_dps: 100, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: RL_tibia, leg: RL, joint: tibia, model: MG995, channel: 5, us_min: 547.0, us_max: 2500.0,
-  us_center: 1485.0, us_per_deg: 10.0, invert: false, max_speed_dps: 100, deg_min: -90.0,
-  deg_max: 90.0, board: left}
-- {id: FR_coxa, leg: FR, joint: coxa, model: MG958, channel: 0, us_min: 500, us_max: 2500,
-  us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 70, deg_min: -90.0,
   deg_max: 90.0, board: right}
-- {id: FR_femur, leg: FR, joint: femur, model: MG996R, channel: 1, us_min: 715.0,
+- {id: RL_tibia, leg: RL, joint: tibia, model: MG995, channel: 2, us_min: 547.0, us_max: 2500.0,
+  us_center: 1485.0, us_per_deg: 10.0, invert: true, max_speed_dps: 100, deg_min: -90.0,
+  deg_max: 90.0, board: right}
+- {id: FR_coxa, leg: FR, joint: coxa, model: MG958, channel: 3, us_min: 500, us_max: 2500,
+  us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 70, deg_min: -90.0,
+  deg_max: 90.0, board: left}
+- {id: FR_femur, leg: FR, joint: femur, model: MG996R, channel: 4, us_min: 715.0,
   us_max: 2484.0, us_center: 1938.0, us_per_deg: 9.78, invert: true, max_speed_dps: 100,
-  deg_min: -90.0, deg_max: 90.0, board: right}
-- {id: FR_tibia, leg: FR, joint: tibia, model: MG996R, channel: 2, us_min: 722.0,
+  deg_min: -90.0, deg_max: 90.0, board: left}
+- {id: FR_tibia, leg: FR, joint: tibia, model: MG996R, channel: 5, us_min: 722.0,
   us_max: 2500.0, us_center: 1596.0, us_per_deg: 9.78, invert: true, max_speed_dps: 100,
-  deg_min: -90.0, deg_max: 90.0, board: right}
-- {id: RR_coxa, leg: RR, joint: coxa, model: MG958, channel: 3, us_min: 500, us_max: 2500,
+  deg_min: -90.0, deg_max: 90.0, board: left}
+- {id: RR_coxa, leg: RR, joint: coxa, model: MG958, channel: 0, us_min: 500, us_max: 2500,
   us_center: 1500, us_per_deg: 11.11, invert: false, max_speed_dps: 70, deg_min: -90.0,
-  deg_max: 90.0, board: right}
-- {id: RR_femur, leg: RR, joint: femur, model: MG996R, channel: 4, us_min: 731.0,
+  deg_max: 90.0, board: left}
+- {id: RR_femur, leg: RR, joint: femur, model: MG996R, channel: 1, us_min: 731.0,
   us_max: 2500, us_center: 2063.0, us_per_deg: 11.11, invert: true, max_speed_dps: 100,
-  deg_min: -90.0, deg_max: 90.0, board: right}
-- {id: RR_tibia, leg: RR, joint: tibia, model: MG996R, channel: 5, us_min: 601.0,
+  deg_min: -90.0, deg_max: 90.0, board: left}
+- {id: RR_tibia, leg: RR, joint: tibia, model: MG996R, channel: 2, us_min: 601.0,
   us_max: 2486.0, us_center: 1582.0, us_per_deg: 8.33, invert: true, max_speed_dps: 100,
-  deg_min: -90.0, deg_max: 90.0, board: right}
+  deg_min: -90.0, deg_max: 90.0, board: left}
+
+imu:
+  enabled: true
+  bus: 1
+  address: 0x68
+  rate_hz: 100
+  filter_alpha: 0.98
+  stabilize: false
+  max_correction_mm: 8.0
+  deadband_deg: 1.8
+  pid:
+    kp: 0.35
+    ki: 0.0
+    kd: 0.015
+    integral_limit: 4.0
+  axis_map:
+    forward: [x, 1]
+    left: [y, 1]
+    up: [z, 1]
+  offsets:
+    roll_deg: 0.0
+    pitch_deg: 0.0

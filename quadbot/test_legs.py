@@ -41,30 +41,30 @@ __test__ = False  # Mark file as operational script, not a pytest test suite
 # ==============================================================================
 
 BOARDS = {
-    "left":  {"bus": 1, "address": 0x50},  # Front-Left & Rear-Left
-    "right": {"bus": 1, "address": 0x40},  # Front-Right & Rear-Right
+    "left":  {"bus": 1, "address": 0x50},  # Front-Right & Rear-Right
+    "right": {"bus": 1, "address": 0x40},  # Front-Left & Rear-Left
 }
 
 SERVOS = {
-    # --- Front-Left Leg (FL) on Left Board (0x50) ---
-    "FL_coxa":  {"leg": "FL", "joint": "coxa",  "board": "left",  "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "FL_femur": {"leg": "FL", "joint": "femur", "board": "left",  "ch": 1, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
-    "FL_tibia": {"leg": "FL", "joint": "tibia", "board": "left",  "ch": 2, "model": "MG958",  "min": 620, "max": 2380, "center": 1500},
+    # --- Front-Left Leg (FL) on Right Board (0x40) ---
+    "FL_coxa":  {"leg": "FL", "joint": "coxa",  "board": "right", "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "FL_femur": {"leg": "FL", "joint": "femur", "board": "right", "ch": 4, "model": "MG958",  "min": 620, "max": 2500, "center": 2039},
+    "FL_tibia": {"leg": "FL", "joint": "tibia", "board": "right", "ch": 5, "model": "MG958",  "min": 717, "max": 2477, "center": 1589},
 
-    # --- Front-Right Leg (FR) on Right Board (0x40) ---
-    "FR_coxa":  {"leg": "FR", "joint": "coxa",  "board": "right", "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "FR_femur": {"leg": "FR", "joint": "femur", "board": "right", "ch": 1, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
-    "FR_tibia": {"leg": "FR", "joint": "tibia", "board": "right", "ch": 2, "model": "MG996R", "min": 620, "max": 2380, "center": 1500},
+    # --- Front-Right Leg (FR) on Left Board (0x50) ---
+    "FR_coxa":  {"leg": "FR", "joint": "coxa",  "board": "left",  "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "FR_femur": {"leg": "FR", "joint": "femur", "board": "left",  "ch": 4, "model": "MG996R", "min": 715, "max": 2484, "center": 1938},
+    "FR_tibia": {"leg": "FR", "joint": "tibia", "board": "left",  "ch": 5, "model": "MG996R", "min": 722, "max": 2500, "center": 1596},
 
-    # --- Rear-Left Leg (RL) on Left Board (0x50) ---
-    "RL_coxa":  {"leg": "RL", "joint": "coxa",  "board": "left",  "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "RL_femur": {"leg": "RL", "joint": "femur", "board": "left",  "ch": 4, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
-    "RL_tibia": {"leg": "RL", "joint": "tibia", "board": "left",  "ch": 5, "model": "MG995",  "min": 600, "max": 2400, "center": 1500},
+    # --- Rear-Left Leg (RL) on Right Board (0x40) ---
+    "RL_coxa":  {"leg": "RL", "joint": "coxa",  "board": "right", "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "RL_femur": {"leg": "RL", "joint": "femur", "board": "right", "ch": 1, "model": "MG995",  "min": 832, "max": 2500, "center": 2122},
+    "RL_tibia": {"leg": "RL", "joint": "tibia", "board": "right", "ch": 2, "model": "MG995",  "min": 547, "max": 2500, "center": 1485},
 
-    # --- Rear-Right Leg (RR) on Right Board (0x40) ---
-    "RR_coxa":  {"leg": "RR", "joint": "coxa",  "board": "right", "ch": 3, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
-    "RR_femur": {"leg": "RR", "joint": "femur", "board": "right", "ch": 4, "model": "MG996R", "min": 500, "max": 2500, "center": 1500},
-    "RR_tibia": {"leg": "RR", "joint": "tibia", "board": "right", "ch": 5, "model": "MG996R", "min": 750, "max": 2250, "center": 1500},
+    # --- Rear-Right Leg (RR) on Left Board (0x50) ---
+    "RR_coxa":  {"leg": "RR", "joint": "coxa",  "board": "left",  "ch": 0, "model": "MG958",  "min": 500, "max": 2500, "center": 1500},
+    "RR_femur": {"leg": "RR", "joint": "femur", "board": "left",  "ch": 1, "model": "MG996R", "min": 731, "max": 2500, "center": 2063},
+    "RR_tibia": {"leg": "RR", "joint": "tibia", "board": "left",  "ch": 2, "model": "MG996R", "min": 601, "max": 2486, "center": 1582},
 }
 
 LEGS = {

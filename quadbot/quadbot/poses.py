@@ -192,16 +192,17 @@ class PoseActionEngine:
         else:
             blend = 0.5 * (1.0 + math.cos(math.pi * ((t_clamped - 3.5) / 0.7)))
 
-        # Lean body away from the waving leg for 3-leg stability
+        # Lean body away from the waving leg and down onto the diagonally opposite leg for rock-solid stability
         sign_y = -1.0 if "L" in wave_leg else 1.0
         sign_x = -1.0 if "F" in wave_leg else 1.0
-        shift_dx = 16.0 * sign_x * blend
-        shift_dy = 16.0 * sign_y * blend
-        shift_dz = -4.0 * blend
-        shift_roll = 3.0 * sign_y * blend
+        shift_dx = 24.0 * sign_x * blend
+        shift_dy = 24.0 * sign_y * blend
+        shift_dz = -10.0 * blend
+        shift_roll = 6.0 * sign_y * blend
+        shift_pitch = 4.0 * sign_x * blend
 
         feet = self.body_engine.compute_feet(
-            dx=shift_dx, dy=shift_dy, dz=shift_dz, roll_deg=shift_roll
+            dx=shift_dx, dy=shift_dy, dz=shift_dz, roll_deg=shift_roll, pitch_deg=shift_pitch
         )
         targets, _ = self._ik_relative(feet)
 
@@ -226,7 +227,7 @@ class PoseActionEngine:
         # Note: Tibia uses -tibia_hi so the tibia folds UP into the air instead of pushing down
         targets[femur_sid] = femur_hi * blend
         targets[tibia_sid] = -tibia_hi * blend - (10.0 * wave_osc * blend)
-        targets[coxa_sid] = 28.0 * wave_osc * blend
+        targets[coxa_sid] = 42.0 * wave_osc * blend
 
         return targets, done
 
@@ -324,9 +325,9 @@ class PoseActionEngine:
         for joint in ["FL_coxa", "FL_femur", "FL_tibia", "FR_coxa", "FR_femur", "FR_tibia"]:
             targets[joint] *= 0.15
 
-        # Boost rear coxa rotation angle for an expressive waggle
-        targets["RL_coxa"] += 14.0 * osc
-        targets["RR_coxa"] += 14.0 * osc
+        # Boost rear coxa rotation angle symmetrically for an expressive waggle
+        targets["RL_coxa"] *= 1.8
+        targets["RR_coxa"] *= 1.8
 
         return targets, done
 

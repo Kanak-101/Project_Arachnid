@@ -52,7 +52,8 @@ class GaitEngine:
         step_speed = float(p.get("step_speed", 1.0))
         coxa_gain = float(p.get("coxa_gain", 1.0))
         if mag > 0.02:
-            self.phase = (self.phase + dt * p["freq_hz"] * p["speed_scale"] * step_speed * freq_scale) % 1.0
+            cadence_scale = max(0.25, min(1.0, mag))
+            self.phase = (self.phase + dt * p["freq_hz"] * p["speed_scale"] * step_speed * freq_scale * cadence_scale) % 1.0
 
         step_len, step_h = p["step_len"], p["step_height"]
         step_len *= stride_scale * step_speed
