@@ -92,16 +92,50 @@ def test_dance_trajectory_and_figures(robot_setup):
 def test_wave_trajectory_and_limits(robot_setup):
     _, _, _, _, engine = robot_setup
 
-    # During wave peak (t=2.0s), FL femur is elevated and tibia is folded UP in the air (negative angle)
+    # During wave peak (t=2.0s), FL femur is elevated and tibia is folded UP in the air (positive angle for invert:false)
     targets, done = engine.wave_targets(2.0, duration=4.2, wave_leg="FL")
     assert not done
-    assert targets["FL_femur"] > 35.0   # Femur elevated
-    assert targets["FL_tibia"] < -50.0  # Tibia folded UP into the air (inverted servo lift)
+    assert targets["FL_femur"] > 70.0   # Femur elevated (~83 deg)
+    assert targets["FL_tibia"] > 50.0   # Tibia folded UP into the air (~61-67 deg)
     assert abs(targets["FL_coxa"]) <= 30.0
 
-    # At t >= 4.2s, wave finishes
-    _, done_end = engine.wave_targets(4.3, duration=4.2, wave_leg="FL")
+    # Supporting leg coxas remain at 1500 us (0.0 deg)
+    assert targets["FR_coxa"] == 0.0
+    assert targets["RL_coxa"] == 0.0
+    assert targets["RR_coxa"] == 0.0
+
+    # At t >= 4.2s, wave finishes and returns to stand
+    targets_end, done_end = engine.wave_targets(4.3, duration=4.2, wave_leg="FL")
     assert done_end
+    for v in targets_end.values():
+        assert abs(v) < 1e-4
+
+
+def test_wave_calibrated_microsecond_outputs(robot_setup):
+    _, _, _, servos, engine = robot_setup
+
+    # Test Preset 1 during stable balance hold (t=1.5s, wave_osc is near 0)
+    targets1, _ = engine.wave_targets(1.5, duration=4.2, wave_leg="FL", pose_set=1)
+    assert abs(servos["FR_femur"].deg_to_us(targets1["FR_femur"]) - 2190.0) < 1.0
+    assert abs(servos["FR_tibia"].deg_to_us(targets1["FR_tibia"]) - 1460.0) < 1.0
+    assert abs(servos["RL_femur"].deg_to_us(targets1["RL_femur"]) - 1832.0) < 1.0
+    assert abs(servos["RL_tibia"].deg_to_us(targets1["RL_tibia"]) - 1571.0) < 1.0
+    assert abs(servos["RR_femur"].deg_to_us(targets1["RR_femur"]) - 1429.0) < 1.0
+    assert abs(servos["RR_tibia"].deg_to_us(targets1["RR_tibia"]) - 1143.0) < 1.0
+    assert abs(servos["FL_femur"].deg_to_us(targets1["FL_femur"]) - 1269.0) < 1.0
+    assert abs(servos["FR_coxa"].deg_to_us(targets1["FR_coxa"]) - 1500.0) < 1.0
+    assert abs(servos["RL_coxa"].deg_to_us(targets1["RL_coxa"]) - 1500.0) < 1.0
+    assert abs(servos["RR_coxa"].deg_to_us(targets1["RR_coxa"]) - 1500.0) < 1.0
+
+    # Test Preset 2
+    targets2, _ = engine.wave_targets(1.5, duration=4.2, wave_leg="FL", pose_set=2)
+    assert abs(servos["FR_femur"].deg_to_us(targets2["FR_femur"]) - 2300.0) < 1.0
+    assert abs(servos["FR_tibia"].deg_to_us(targets2["FR_tibia"]) - 1625.0) < 1.0
+    assert abs(servos["RL_femur"].deg_to_us(targets2["RL_femur"]) - 2100.0) < 1.0
+    assert abs(servos["RL_tibia"].deg_to_us(targets2["RL_tibia"]) - 1672.0) < 1.0
+    assert abs(servos["RR_femur"].deg_to_us(targets2["RR_femur"]) - 2000.0) < 1.0
+    assert abs(servos["RR_tibia"].deg_to_us(targets2["RR_tibia"]) - 2010.0) < 1.0
+    assert abs(servos["FL_femur"].deg_to_us(targets2["FL_femur"]) - 1270.0) < 1.0
 
 
 def test_pushup_action(robot_setup):

@@ -120,3 +120,46 @@ def test_dynamic_speed_scaling_slows_cadence_at_low_deflection():
     d_slow = (g_slow.phase - phase_slow_start) % 1.0
     d_fast = (g_fast.phase - phase_fast_start) % 1.0
     assert d_slow < d_fast * 0.5, f"Expected slow cadence ({d_slow}) < fast cadence ({d_fast})"
+
+
+def test_trot_swing_folds_tibia_and_lifts_femur():
+    from quadbot.servos import ServoCal
+
+    servos = {s["id"]: ServoCal.from_dict(s) for s in CFG["servos"]}
+    g = GaitEngine(CFG)
+    nom_feet = g.nominal(CFG["gait"]["height_stand"])
+    neutral_deg = {}
+    for leg, (x, y, z) in nom_feet.items():
+        th1, a, b, _ = K.ik_deg(x, y, z)
+        neutral_deg[f"{leg}_coxa"] = th1
+        neutral_deg[f"{leg}_femur"] = a
+        neutral_deg[f"{leg}_tibia"] = b
+
+    # Warm up to nominal standing height
+    for _ in range(200):
+        g.update(DT, "trot", (1.0, 0.0, 0.0))
+
+    peak_swing_observed = False
+    for _ in range(150):
+        feet = g.update(DT, "trot", (1.0, 0.0, 0.0))
+        for leg in g.swing:
+            x, y, z = feet[leg]
+            lift = z - (-g.height)
+            # At peak swing (maximum vertical ground clearance)
+            if lift > 32.0:
+                th1, a, b, ok = K.ik_deg(x, y, z)
+                f_target = a - neutral_deg[f"{leg}_femur"]
+                t_target = neutral_deg[f"{leg}_tibia"] - b
+                f_s = servos[f"{leg}_femur"]
+                t_s = servos[f"{leg}_tibia"]
+
+                # Femur lifts up (target > 0, pulse decreases)
+                assert f_target > 0.0
+                assert f_s.deg_to_us(f_target) < f_s.deg_to_us(0.0)
+
+                # Tibia folds UP into the air (target > 0, pulse increases)
+                assert t_target > 0.0
+                assert t_s.deg_to_us(t_target) > t_s.deg_to_us(0.0)
+                peak_swing_observed = True
+
+    assert peak_swing_observed

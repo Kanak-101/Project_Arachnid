@@ -747,7 +747,7 @@ class Robot:
                     else:
                         targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
                         targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
-                        targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
+                        targets[f"{leg}_tibia"] = self.neutral_deg[f"{leg}_tibia"] - b
             for sid in list(self.enabled):
                 s = self.servos[sid]
                 deg = self.limiter.step(s, targets[sid], dt)

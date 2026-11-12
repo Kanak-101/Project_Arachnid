@@ -102,7 +102,7 @@ class PoseActionEngine:
                 all_ok = False
             targets[f"{leg}_coxa"] = th1 - self.neutral_deg[f"{leg}_coxa"]
             targets[f"{leg}_femur"] = a - self.neutral_deg[f"{leg}_femur"]
-            targets[f"{leg}_tibia"] = b - self.neutral_deg[f"{leg}_tibia"]
+            targets[f"{leg}_tibia"] = self.neutral_deg[f"{leg}_tibia"] - b
         return targets, all_ok
 
     # -------------------------------------------------------------------------
@@ -173,61 +173,117 @@ class PoseActionEngine:
         info = {"dx": dx, "dy": dy, "dz": dz, "roll": roll, "pitch": pitch, "yaw": yaw, "figure": desc}
         return targets, info
 
+    WAVE_CALIBRATED_SETS = {
+        1: {
+            "RL_femur": 1832.0, "RL_tibia": 1571.0,
+            "RR_femur": 1429.0, "RR_tibia": 1143.0,
+            "FR_femur": 2190.0, "FR_tibia": 1460.0,
+            "FL_femur": 1269.0, "FL_tibia": 2217.0,
+        },
+        2: {
+            "RL_femur": 2100.0, "RL_tibia": 1672.0,
+            "RR_femur": 2000.0, "RR_tibia": 2010.0,
+            "FR_femur": 2300.0, "FR_tibia": 1625.0,
+            "FL_femur": 1270.0, "FL_tibia": 2210.0,
+        },
+    }
+
     # -------------------------------------------------------------------------
-    # 2. WAVE: High tibia lift, weight shift, salute, and paw flex
+    # 2. WAVE: Weight shift onto FR, RL, RR with high FL lift and waving motion
     # -------------------------------------------------------------------------
-    def wave_targets(self, t: float, duration: float = 4.2, wave_leg: str = "FL") -> Tuple[Dict[str, float], bool]:
-        """Fixed & enhanced wave: lifts tibia off the ground to calibrated high position."""
+    def wave_targets(
+        self, t: float, duration: float = 4.2, wave_leg: str = "FL", pose_set: int = 1
+    ) -> Tuple[Dict[str, float], bool]:
+        """Calibrated wave action with weight shift balanced on FR, RL, and RR.
+
+        Uses measured microsecond presets for stable balance on 3 legs while FL is lifted.
+        Supporting leg coxas remain at 1500 us (0.0 deg). FL waves expressively.
+        """
         done = t >= duration
         t_clamped = min(t, duration)
 
-        # Smooth S-curve weight shift:
-        # 0.0 -> 0.7s: lean away from wave_leg
-        # 0.7 -> 3.5s: hold lean & wave leg in air
-        # 3.5 -> 4.2s: smoothly lower leg back to stand
-        if t_clamped < 0.7:
-            blend = 0.5 * (1.0 - math.cos(math.pi * (t_clamped / 0.7)))
-        elif t_clamped < 3.5:
+        # Smooth S-curve weight shift and return:
+        # 0.0 -> 0.8s: Shift weight to balance legs (FR, RL, RR) and lift waving leg
+        # 0.8 -> 3.4s: Hold balance stance and wave FL coxa / flex tibia
+        # 3.4 -> 4.2s: Smoothly lower leg back to neutral stance
+        t_in = 0.8
+        t_out = max(t_in, duration - 0.8)
+        if t_clamped < t_in:
+            blend = 0.5 * (1.0 - math.cos(math.pi * (t_clamped / t_in)))
+        elif t_clamped < t_out:
             blend = 1.0
         else:
-            blend = 0.5 * (1.0 + math.cos(math.pi * ((t_clamped - 3.5) / 0.7)))
+            blend = 0.5 * (1.0 + math.cos(math.pi * ((t_clamped - t_out) / (duration - t_out))))
 
-        # Lean body away from the waving leg and down onto the diagonally opposite leg for rock-solid stability
-        sign_y = -1.0 if "L" in wave_leg else 1.0
-        sign_x = -1.0 if "F" in wave_leg else 1.0
-        shift_dx = 24.0 * sign_x * blend
-        shift_dy = 24.0 * sign_y * blend
-        shift_dz = -10.0 * blend
-        shift_roll = 6.0 * sign_y * blend
-        shift_pitch = 4.0 * sign_x * blend
+        if done:
+            blend = 0.0
 
-        feet = self.body_engine.compute_feet(
-            dx=shift_dx, dy=shift_dy, dz=shift_dz, roll_deg=shift_roll, pitch_deg=shift_pitch
-        )
-        targets, _ = self._ik_relative(feet)
+        targets = {sid: 0.0 for sid in self.servos} if self.servos else {
+            f"{leg}_{joint}": 0.0
+            for leg in self.legs
+            for joint in ("coxa", "femur", "tibia")
+        }
 
-        # Calibrated limits for waving leg
-        tibia_sid = f"{wave_leg}_tibia"
-        femur_sid = f"{wave_leg}_femur"
-        coxa_sid = f"{wave_leg}_coxa"
+        if wave_leg == "FL":
+            preset = self.WAVE_CALIBRATED_SETS.get(pose_set, self.WAVE_CALIBRATED_SETS[1])
+            for sid, target_us in preset.items():
+                s = self.servos.get(sid)
+                if s is not None:
+                    target_deg = s.us_to_deg(target_us)
+                else:
+                    if "femur" in sid:
+                        target_deg = 83.0 if sid == "FL_femur" else 15.0
+                    else:
+                        target_deg = 67.0 if sid == "FL_tibia" else 0.0
+                targets[sid] = target_deg * blend
 
-        s_tibia = self.servos.get(tibia_sid)
-        s_femur = self.servos.get(femur_sid)
+            # All supporting coxas remain strictly centered at 1500 us (0.0 deg)
+            for leg in ("FR", "RL", "RR"):
+                targets[f"{leg}_coxa"] = 0.0
 
-        # Tibia lifts into the air: with inverted servo sign, negative degrees fold/raise the tibia UP
-        tibia_hi = min(abs(s_tibia.deg_range()[0]) * 0.85, 72.0) if s_tibia else 65.0
-        femur_hi = min(s_femur.deg_range()[1] * 0.85, 50.0) if s_femur else 45.0
+            # Expressive wave oscillation smoothly windowed between t_in and t_out
+            if t_in <= t_clamped <= t_out:
+                u_wave = (t_clamped - t_in) / (t_out - t_in)
+                env = math.sin(math.pi * u_wave)
+                wave_osc = env * math.sin(2.0 * math.pi * 1.5 * (t_clamped - t_in))
+            else:
+                wave_osc = 0.0
 
-        # Coxa back-and-forth waving cycles (3 full waves between 0.7s and 3.5s)
-        wave_time = max(0.0, min(2.8, t_clamped - 0.7))
-        wave_freq = 1.5  # Hz
-        wave_osc = math.sin(2.0 * math.pi * wave_freq * wave_time) if 0.7 <= t_clamped <= 3.5 else 0.0
+            # FL coxa back-and-forth wave (+/- 28 deg around 1500 us)
+            targets["FL_coxa"] = 28.0 * wave_osc * blend
+            # Subtle expressive paw flex on tibia (+/- 6 deg)
+            targets["FL_tibia"] += 6.0 * wave_osc * blend
+        else:
+            # Kinematic fallback for non-FL wave requests
+            sign_y = -1.0 if "L" in wave_leg else 1.0
+            sign_x = -1.0 if "F" in wave_leg else 1.0
+            shift_dx = 24.0 * sign_x * blend
+            shift_dy = 24.0 * sign_y * blend
+            shift_dz = -10.0 * blend
+            shift_roll = 6.0 * sign_y * blend
+            shift_pitch = 4.0 * sign_x * blend
 
-        # Waving leg targets (relative to neutral stand)
-        # Note: Tibia uses -tibia_hi so the tibia folds UP into the air instead of pushing down
-        targets[femur_sid] = femur_hi * blend
-        targets[tibia_sid] = -tibia_hi * blend - (10.0 * wave_osc * blend)
-        targets[coxa_sid] = 42.0 * wave_osc * blend
+            feet = self.body_engine.compute_feet(
+                dx=shift_dx, dy=shift_dy, dz=shift_dz, roll_deg=shift_roll, pitch_deg=shift_pitch
+            )
+            targets, _ = self._ik_relative(feet)
+
+            tibia_sid = f"{wave_leg}_tibia"
+            femur_sid = f"{wave_leg}_femur"
+            coxa_sid = f"{wave_leg}_coxa"
+
+            s_tibia = self.servos.get(tibia_sid)
+            s_femur = self.servos.get(femur_sid)
+
+            tibia_hi = 67.0 if s_tibia is None else abs(s_tibia.us_to_deg(2217.0))
+            femur_hi = 83.0 if s_femur is None else abs(s_femur.us_to_deg(1269.0))
+
+            wave_time = max(0.0, min(duration - 1.4, t_clamped - 0.7))
+            wave_osc = math.sin(2.0 * math.pi * 1.5 * wave_time) if 0.7 <= t_clamped <= (duration - 0.7) else 0.0
+
+            targets[femur_sid] = femur_hi * blend
+            targets[tibia_sid] = tibia_hi * blend + (6.0 * wave_osc * blend)
+            targets[coxa_sid] = 28.0 * wave_osc * blend
 
         return targets, done
 
