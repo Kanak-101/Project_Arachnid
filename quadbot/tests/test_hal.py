@@ -96,3 +96,35 @@ def test_mock_driver_multi_board():
     assert ("right", 0) not in m.pulses
     assert 0 not in m.pulses
 
+
+def test_rplidar_driver_config_and_mask():
+    import numpy as np
+    from quadbot.lidar import make_lidar, RPLidarDriver
+
+    cfg = {
+        "lidar": {
+            "driver": "rplidar",
+            "port": "/dev/ttyUSB0",
+            "baud": 115200,
+            "clockwise": True,
+            "mount_offset_deg": 45,
+            "mask_deg": [[0, 10]],
+        }
+    }
+    d = make_lidar(cfg)
+    assert isinstance(d, RPLidarDriver)
+    assert d.port == "/dev/ttyUSB0"
+    assert d.baud == 115200
+    assert d.cw is True
+    assert d.offset == 45
+    assert d.mask[0] and d.mask[5] and d.mask[10]
+    assert not d.mask[20]
+
+    # Test publish and mask zeroing
+    fake_scan = np.ones(360, dtype=np.float32) * 500.0
+    d._publish(fake_scan)
+    scan, age = d.snapshot()
+    assert scan[0] == 0.0 and scan[5] == 0.0
+    assert scan[20] == 500.0
+    assert age < 1.0
+

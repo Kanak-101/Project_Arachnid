@@ -86,18 +86,40 @@ class MockLidar(LidarBase):
 class RPLidarDriver(LidarBase):
     """Slamtec RPLidar via the `rplidar-roboticia` package (pip install rplidar-roboticia)."""
 
-    def __init__(self, port, baud=115200, clockwise=True, offset_deg=0, **kw):
+    def __init__(self, port="/dev/ttyUSB0", baud=115200, clockwise=True, offset_deg=0, **kw):
         super().__init__(**kw)
         self.port, self.baud, self.cw, self.offset = port, baud, clockwise, offset_deg
 
+    def _resolve_port(self):
+        from pathlib import Path
+        if self.port and Path(self.port).exists():
+            return self.port
+        if Path("/dev/serial/by-id").exists():
+            for p in Path("/dev/serial/by-id").glob("*"):
+                name = p.name.lower()
+                if "cp210" in name or "silicon_labs" in name or "rplidar" in name:
+                    return str(p)
+        usb_ports = sorted(Path("/dev").glob("ttyUSB*"))
+        if usb_ports:
+            return str(usb_ports[0])
+        acm_ports = sorted(Path("/dev").glob("ttyACM*"))
+        if acm_ports:
+            return str(acm_ports[0])
+        return self.port
+
     def _run(self):
-        from rplidar import RPLidar, RPLidarException
+        try:
+            from rplidar import RPLidar, RPLidarException
+        except ImportError:
+            self.status = "error: rplidar package not installed (pip install rplidar-roboticia)"
+            return
 
         while not self._stop.is_set():
             lidar = None
+            port = self._resolve_port()
             try:
                 self.status = "connecting"
-                lidar = RPLidar(self.port, baudrate=self.baud, timeout=3)
+                lidar = RPLidar(port, baudrate=self.baud, timeout=3)
                 lidar.clean_input()
                 self.status = "running"
                 for scan in lidar.iter_scans(max_buf_meas=5000):
@@ -110,7 +132,7 @@ class RPLidarDriver(LidarBase):
                         if dist > 0 and (bins[i] == 0 or dist < bins[i]):
                             bins[i] = dist
                     self._publish(bins)
-            except (RPLidarException, OSError, ValueError) as e:  # reconnect after any serial hiccup
+            except (RPLidarException, OSError, ValueError, Exception) as e:  # reconnect after any serial hiccup
                 self.status = f"error: {e}"[:80]
                 time.sleep(1.0)
             finally:
@@ -127,6 +149,6 @@ def make_lidar(cfg):
     c = cfg.get("lidar", {})
     mask = c.get("mask_deg", [])
     if c.get("driver", "mock") == "rplidar":
-        return RPLidarDriver(c["port"], c.get("baud", 115200), c.get("clockwise", True),
+        return RPLidarDriver(c.get("port", "/dev/ttyUSB0"), c.get("baud", 115200), c.get("clockwise", True),
                              c.get("mount_offset_deg", 0), mask_deg=mask)
     return MockLidar(mask_deg=mask)
