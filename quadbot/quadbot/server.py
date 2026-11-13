@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config as cfgmod
@@ -85,6 +85,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, camera=None
     async def lifespan(app):
         lidar.start()
         robot.start_imu()
+        camera.start_feed()
         tasks = [asyncio.create_task(f()) for f in (control_loop, state_loop, scan_loop)]
         yield
         for t in tasks:
@@ -107,25 +108,33 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, camera=None
 
     @app.get("/api/camera/stream")
     async def camera_stream():
+        if not camera.enabled:
+            camera.start_feed()
+
         async def frame_generator():
-            while True:
-                if not camera.enabled:
-                    await asyncio.sleep(0.25)
-                    continue
-                jpeg = camera.get_latest_jpeg()
-                if jpeg is not None:
-                    yield (
-                        b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-                    )
-                    await asyncio.sleep(1.0 / 30.0)
-                else:
-                    await asyncio.sleep(0.05)
+            try:
+                while True:
+                    jpeg = camera.get_latest_jpeg()
+                    if jpeg:
+                        yield (
+                            b"--frame\r\n"
+                            b"Content-Type: image/jpeg\r\n"
+                            b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
+                            + jpeg + b"\r\n"
+                        )
+                    await asyncio.sleep(1.0 / max(5, min(60, camera.fps)))
+            except (asyncio.CancelledError, GeneratorExit):
+                pass
 
         return StreamingResponse(
             frame_generator(),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
+
+    @app.get("/api/camera/frame")
+    def camera_frame():
+        jpeg = camera.get_latest_jpeg()
+        return Response(content=jpeg, media_type="image/jpeg")
 
     @app.get("/api/camera/status")
     def camera_status():

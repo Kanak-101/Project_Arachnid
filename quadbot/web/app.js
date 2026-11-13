@@ -889,6 +889,7 @@ $('#radar').addEventListener('click', (e) => {
 
 /* ------------------------------------------------------------------ camera & vision */
 let camPollTimer = null;
+let cameraActive = true;
 
 async function fetchCameraStatus() {
   try {
@@ -897,6 +898,14 @@ async function fetchCameraStatus() {
     const data = await res.json();
     updateCameraUI(data);
   } catch (_) {}
+}
+
+function reloadCameraStream() {
+  const streamImg = $('#camStreamImg');
+  if (streamImg && cameraActive) {
+    streamImg.src = '/api/camera/stream?t=' + Date.now();
+    streamImg.dataset.paused = 'false';
+  }
 }
 
 function updateCameraUI(camSt) {
@@ -910,21 +919,20 @@ function updateCameraUI(camSt) {
   const resEl = $('#camRes');
   const chipEl = $('#camStatusChip');
 
-  const isEnabled = !!camSt.enabled;
+  cameraActive = !!camSt.enabled;
   if (btnToggle) {
-    btnToggle.textContent = isEnabled ? 'Turn Off' : 'Turn On';
-    btnToggle.classList.toggle('on', isEnabled);
-    btnToggle.classList.toggle('off', !isEnabled);
+    btnToggle.textContent = cameraActive ? 'Turn Off' : 'Turn On';
+    btnToggle.className = `btn-cam-toggle ${cameraActive ? 'on' : 'off'}`;
   }
   if (badge) {
-    badge.textContent = isEnabled ? (camSt.active ? 'Streaming' : 'Standby') : 'Off';
-    badge.className = `chip cam-badge ${isEnabled ? 'active' : 'inactive'}`;
+    badge.textContent = cameraActive ? (camSt.active ? 'Streaming' : 'Connecting') : 'Off';
+    badge.className = `chip cam-badge ${cameraActive ? 'active' : 'inactive'}`;
   }
   if (streamImg && placeholder) {
-    if (isEnabled) {
+    if (cameraActive) {
       placeholder.style.display = 'none';
       streamImg.style.display = 'block';
-      if (!streamImg.src || streamImg.src.includes('about:blank') || streamImg.dataset.paused === 'true') {
+      if (!streamImg.src || streamImg.dataset.paused === 'true' || streamImg.getAttribute('src') === '') {
         streamImg.src = '/api/camera/stream?t=' + Date.now();
         streamImg.dataset.paused = 'false';
       }
@@ -936,21 +944,21 @@ function updateCameraUI(camSt) {
     }
   }
   if (srcEl) {
-    if (!isEnabled) {
+    if (!cameraActive) {
       srcEl.textContent = 'Disabled';
     } else if (camSt.source.startsWith('realsense:')) {
       srcEl.textContent = camSt.source.replace('realsense:', '');
     } else if (camSt.source.startsWith('v4l2:')) {
       srcEl.textContent = `V4L2 (${camSt.source.replace('v4l2:', '')})`;
     } else {
-      srcEl.textContent = camSt.source || 'Standby';
+      srcEl.textContent = camSt.source || 'Connecting...';
     }
   }
   if (fpsEl) fpsEl.textContent = (camSt.fps != null ? camSt.fps : 0).toFixed(1);
   if (resEl && camSt.resolution) resEl.textContent = `${camSt.resolution[0]}x${camSt.resolution[1]}`;
   if (chipEl) {
-    chipEl.textContent = isEnabled ? (camSt.active ? 'online' : 'standby') : 'disabled';
-    chipEl.className = `chip ${isEnabled ? (camSt.active ? 'connected' : 'calib') : ''}`;
+    chipEl.textContent = cameraActive ? (camSt.active ? 'online' : 'standby') : 'disabled';
+    chipEl.className = `chip ${cameraActive ? (camSt.active ? 'connected' : 'calib') : ''}`;
   }
 }
 
@@ -974,6 +982,23 @@ async function toggleCamera(forceState) {
 
 $('#btnCamToggle')?.addEventListener('click', () => toggleCamera());
 $('#btnCamStartPlaceholder')?.addEventListener('click', () => toggleCamera(true));
+$('#btnCamReload')?.addEventListener('click', () => reloadCameraStream());
+
+const camStreamImgEl = $('#camStreamImg');
+if (camStreamImgEl) {
+  camStreamImgEl.onerror = () => {
+    if (cameraActive) {
+      setTimeout(() => {
+        if (camStreamImgEl && cameraActive && camStreamImgEl.style.display !== 'none') {
+          camStreamImgEl.src = '/api/camera/stream?t=' + Date.now();
+        }
+      }, 1500);
+    }
+  };
+}
+
+// Initial camera status poll on script load
+fetchCameraStatus();
 
 /* ------------------------------------------------------------------ chrome */
 $('#arm').addEventListener('click', () => {
@@ -1000,7 +1025,8 @@ $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   if (tab === 'radar') {
     drawRadar();
     fetchCameraStatus();
-    if (!camPollTimer) camPollTimer = setInterval(fetchCameraStatus, 2500);
+    reloadCameraStream();
+    if (!camPollTimer) camPollTimer = setInterval(fetchCameraStatus, 2000);
   } else {
     if (camPollTimer) { clearInterval(camPollTimer); camPollTimer = null; }
   }

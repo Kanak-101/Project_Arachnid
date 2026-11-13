@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>quadbot - Project Arachnid Console</title>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -383,13 +383,14 @@
       <div class="panel-header-row" style="margin-bottom:8px;">
         <h2>📷 RealSense D435 (2D Feed)</h2>
         <div class="cam-header-actions">
+          <button id="btnCamReload" class="chip" title="Reload camera feed" style="cursor:pointer; background:#334155; color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:12px;">🔄 Reload</button>
           <button id="btnCamToggle" class="btn-cam-toggle on" title="Toggle RealSense Camera Feed">Turn Off</button>
           <span id="camStateBadge" class="chip cam-badge active">Streaming</span>
         </div>
       </div>
 
       <div class="camera-viewport-wrap" id="cameraViewportWrap">
-        <img id="camStreamImg" class="camera-stream-img" src="/api/camera/stream" alt="RealSense D435 Stream" />
+        <img id="camStreamImg" class="camera-stream-img" alt="RealSense D435 Stream" />
         <div id="camPlaceholder" class="camera-placeholder" style="display:none;">
           <div class="cam-placeholder-icon">📷</div>
           <div class="cam-placeholder-title">Camera Feed Off</div>
@@ -443,6 +444,6 @@
 </div>
 
 </main>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

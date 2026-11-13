@@ -100,16 +100,21 @@ def test_camera_endpoints(tmp_path):
     with TestClient(app) as c:
         r = c.get("/api/camera/status")
         assert r.status_code == 200
+        assert r.json()["enabled"] is True
+
+        r_frame = c.get("/api/camera/frame")
+        assert r_frame.status_code == 200
+        assert r_frame.headers["content-type"] == "image/jpeg"
+        assert len(r_frame.content) > 0
+
+        r = c.post("/api/camera/toggle", json={"enabled": False})
+        assert r.status_code == 200
+        assert r.json()["enabled"] is False
+
+        r = c.get("/api/camera/status")
         assert r.json()["enabled"] is False
 
         r = c.post("/api/camera/toggle", json={"enabled": True})
         assert r.status_code == 200
         assert r.json()["enabled"] is True
-
-        r = c.get("/api/camera/status")
-        assert r.json()["enabled"] is True
-
-        r = c.post("/api/camera/toggle", json={"enabled": False})
-        assert r.status_code == 200
-        assert r.json()["enabled"] is False
 
