@@ -94,3 +94,22 @@ def test_action_api_endpoint(tmp_path):
         assert data["action"] == "pushup"
         assert robot.active_action == "pushup"
 
+
+def test_camera_endpoints(tmp_path):
+    app = make_app(tmp_path)
+    with TestClient(app) as c:
+        r = c.get("/api/camera/status")
+        assert r.status_code == 200
+        assert r.json()["enabled"] is False
+
+        r = c.post("/api/camera/toggle", json={"enabled": True})
+        assert r.status_code == 200
+        assert r.json()["enabled"] is True
+
+        r = c.get("/api/camera/status")
+        assert r.json()["enabled"] is True
+
+        r = c.post("/api/camera/toggle", json={"enabled": False})
+        assert r.status_code == 200
+        assert r.json()["enabled"] is False
+

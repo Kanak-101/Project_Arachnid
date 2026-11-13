@@ -9,7 +9,7 @@ lidar:
   port: /dev/ttyUSB0
   baud: 115200
   clockwise: true
-  mount_offset_deg: 0
+  mount_offset_deg: 180
   mask_deg: []
 battery: {enabled: true, driver: ads1115, bus: 1, address: 72, channel: 0, divider_ratio: 5.0,
   v_min: 6.6, v_max: 8.4, v_warn: 7.0}

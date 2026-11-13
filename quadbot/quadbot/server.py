@@ -17,13 +17,13 @@ from pathlib import Path
 
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config as cfgmod
 from .battery import make_battery_reader
+from .camera import CameraManager
 from .hal import make_driver
 from .lidar import make_lidar
 from .robot import Robot
@@ -32,7 +32,7 @@ log = logging.getLogger("quadbot")
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False, initial_mode=None):
+def create_app(cfg_path=None, driver=None, lidar=None, battery=None, camera=None, demo=False, initial_mode=None):
     cfg_path = Path(cfg_path or ROOT / "config" / "robot.yaml")
     cfg = cfgmod.load(cfg_path)
     if demo:
@@ -43,6 +43,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False,
     driver = driver or make_driver(cfg)
     lidar = lidar or make_lidar(cfg)
     battery = battery or make_battery_reader(cfg)
+    camera = camera or CameraManager()
     robot = Robot(cfg, cfg_path, driver, lidar, battery=battery, initial_mode=initial_mode)
     clients = set()
     rate = cfg["control"]["rate_hz"]
@@ -89,6 +90,7 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False,
         for t in tasks:
             t.cancel()
         lidar.stop()
+        camera.stop_feed()
         if battery:
             battery.close()
         robot.close_imu()
@@ -97,10 +99,47 @@ def create_app(cfg_path=None, driver=None, lidar=None, battery=None, demo=False,
 
     app = FastAPI(lifespan=lifespan)
     app.state.robot = robot
+    app.state.camera = camera
 
     @app.get("/api/config")
     def get_config():
         return JSONResponse(robot.cal_message())
+
+    @app.get("/api/camera/stream")
+    async def camera_stream():
+        async def frame_generator():
+            while True:
+                if not camera.enabled:
+                    await asyncio.sleep(0.25)
+                    continue
+                jpeg = camera.get_latest_jpeg()
+                if jpeg is not None:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+                    )
+                    await asyncio.sleep(1.0 / 30.0)
+                else:
+                    await asyncio.sleep(0.05)
+
+        return StreamingResponse(
+            frame_generator(),
+            media_type="multipart/x-mixed-replace; boundary=frame",
+        )
+
+    @app.get("/api/camera/status")
+    def camera_status():
+        return JSONResponse(camera.get_status())
+
+    @app.post("/api/camera/toggle")
+    async def camera_toggle(request: Request):
+        try:
+            payload = await request.json()
+            state = payload.get("enabled")
+        except Exception:
+            state = None
+        is_on = camera.toggle(state)
+        return JSONResponse({"ok": True, "enabled": is_on, "status": camera.get_status()})
 
     @app.post("/api/palm")
     async def palm_event(request: Request):

@@ -36,7 +36,7 @@
   <button role="tab" data-tab="drive" aria-selected="true">Drive</button>
   <button role="tab" data-tab="calib" aria-selected="false">Calibrate</button>
   <button role="tab" data-tab="legs" aria-selected="false">Legs</button>
-  <button role="tab" data-tab="radar" aria-selected="false">Radar</button>
+  <button role="tab" data-tab="radar" aria-selected="false">Radar & Vision</button>
 </nav>
 
 <main>
@@ -175,7 +175,15 @@
   <div class="panel gamepad-panel" id="gamepadSection">
     <div class="panel-header-row">
       <h2>🎮 Gamepad Controller</h2>
-      <span id="gamepadStatus" class="chip gamepad-status">No Gamepad Detected</span>
+      <div class="gamepad-header-actions">
+        <label for="padLayoutSelect" class="pad-layout-label">Layout:</label>
+        <select id="padLayoutSelect" class="pad-layout-select">
+          <option value="ps_cachyos">PlayStation (CachyOS / Linux)</option>
+          <option value="xbox_standard">Xbox / Standard (Windows & Linux)</option>
+          <option value="legacy">Legacy Default</option>
+        </select>
+        <span id="gamepadStatus" class="chip gamepad-status">No Gamepad Detected</span>
+      </div>
     </div>
     
     <div id="gamepadDetails" class="gamepad-details" hidden>
@@ -199,30 +207,41 @@
           </div>
         </div>
 
-        <!-- ABXY Actions cluster -->
+        <!-- Face Buttons (A / B / X / Y or ✕ / ◯ / ▢ / △) -->
         <div class="pad-btn-cluster">
-          <span class="pad-label">Poses & Actions</span>
+          <span class="pad-label" id="lblFaceCluster">Face Buttons</span>
           <div class="abxy-grid">
-            <div class="pad-btn-item btn-y" id="btnPadY"><b>Y</b><span>Mode 🔄</span></div>
-            <div class="pad-btn-item btn-x" id="btnPadX"><b>X</b><span>Wave 👋</span></div>
-            <div class="pad-btn-item btn-b" id="btnPadB"><b>B</b><span>Crab 🦀</span></div>
-            <div class="pad-btn-item btn-a" id="btnPadA"><b>A</b><span>Stand</span></div>
+            <div class="pad-btn-item btn-y" id="btnPadY"><b id="lblBtnY">△</b><span>Mode 🔄</span></div>
+            <div class="pad-btn-item btn-x" id="btnPadX"><b id="lblBtnX">▢</b><span>Pushup 💪</span></div>
+            <div class="pad-btn-item btn-b" id="btnPadB"><b id="lblBtnB">◯</b><span>Trot 🐕</span></div>
+            <div class="pad-btn-item btn-a" id="btnPadA"><b id="lblBtnA">✕</b><span>Wave 👋</span></div>
           </div>
         </div>
 
-        <!-- Triggers, Bumpers & System -->
+        <!-- D-Pad Directional Remapped Cluster -->
+        <div class="pad-btn-cluster pad-dpad-cluster">
+          <span class="pad-label">D-Pad Commands</span>
+          <div class="dpad-card-grid">
+            <div class="pad-dpad-item" id="btnPadDUp"><b>▲ Up</b><span>Stand 🚶</span></div>
+            <div class="pad-dpad-item" id="btnPadDDown"><b>▼ Down</b><span>Sit / Rest 🧎</span></div>
+            <div class="pad-dpad-item" id="btnPadDLeft"><b>◄ Left</b><span>Crab Dance 🦀</span></div>
+            <div class="pad-dpad-item" id="btnPadDRight"><b>► Right</b><span>Bow 🙇</span></div>
+          </div>
+        </div>
+
+        <!-- Bumpers, Triggers & System -->
         <div class="pad-aux-box">
-          <span class="pad-label">Actions & Power</span>
+          <span class="pad-label">Bumpers & Power</span>
           <div class="pad-aux-grid">
-            <div class="pad-pill" id="btnPadLB"><span>LB</span><b>Push-up</b></div>
-            <div class="pad-pill" id="btnPadRB"><span>RB</span><b>Wiggle</b></div>
-            <div class="pad-pill" id="btnPadStart"><span>Start</span><b>Arm</b></div>
-            <div class="pad-pill stop" id="btnPadSelect"><span>Select</span><b>Stop</b></div>
+            <div class="pad-pill" id="btnPadLB"><span id="lblBtnLB">L1</span><b>Wiggle</b></div>
+            <div class="pad-pill" id="btnPadRB"><span id="lblBtnRB">R1</span><b>Dance</b></div>
+            <div class="pad-pill" id="btnPadStart"><span id="lblBtnStart">Opt</span><b>Arm</b></div>
+            <div class="pad-pill stop" id="btnPadSelect"><span id="lblBtnSelect">Share</span><b>Stop</b></div>
           </div>
         </div>
       </div>
     </div>
-    <p id="gamepadPrompt" class="hint">Connect your USB or Bluetooth gamepad to this laptop and press any button to begin controlling the robot.</p>
+    <p id="gamepadPrompt" class="hint">Connect your USB or Bluetooth gamepad to this computer and press any button to begin controlling the robot.</p>
   </div>
 
   <div class="panel sticks">
@@ -337,20 +356,56 @@
   </div>
 </section>
 
-<!-- ============================ RADAR ============================ -->
+<!-- ============================ RADAR & VISION ============================ -->
 <section id="tab-radar" class="tab" hidden>
-  <div class="panel radarPanel">
-    <canvas id="radar" width="640" height="640"></canvas>
-    <div class="readout wide">
-      <div><small>lidar</small><b id="lidStatus">-</b></div>
-      <div><small>scan age</small><b id="lidAge">-</b></div>
-      <div><small>nearest ahead</small><b id="lidFront">-</b></div>
-      <div><small>target</small><b id="tgtInfo">tap the map</b></div>
+  <div class="vision-layout">
+    <!-- LiDAR 360 Radar Panel -->
+    <div class="panel radarPanel">
+      <div class="panel-header-row" style="margin-bottom:8px;">
+        <h2>📡 LiDAR 360° Radar</h2>
+        <span class="chip" id="lidarMountChip" title="Mounted 180° Inverted">180° Inverted Mount</span>
+      </div>
+      <canvas id="radar" width="640" height="640"></canvas>
+      <div class="readout wide">
+        <div><small>lidar</small><b id="lidStatus">-</b></div>
+        <div><small>scan age</small><b id="lidAge">-</b></div>
+        <div><small>nearest ahead</small><b id="lidFront">-</b></div>
+        <div><small>target</small><b id="tgtInfo">tap the map</b></div>
+      </div>
+      <label class="slide"><span>Range <b id="rngVal">3.0 m</b></span><input type="range" id="rngSlider" min="1" max="8" step="0.5" value="3"></label>
+      <div class="grid2" id="avoidSliders"></div>
+      <label class="check" id="mockRow" hidden><input type="checkbox" id="chkMock"> Simulated obstacle 0.6 m ahead (mock lidar)</label>
+      <p class="hint">Tapping the map marks a spot and shows its range and bearing. 0° points forward (mount inversion applied in driver).</p>
     </div>
-    <label class="slide"><span>Range <b id="rngVal">3.0 m</b></span><input type="range" id="rngSlider" min="1" max="8" step="0.5" value="3"></label>
-    <div class="grid2" id="avoidSliders"></div>
-    <label class="check" id="mockRow" hidden><input type="checkbox" id="chkMock"> Simulated obstacle 0.6 m ahead (mock lidar)</label>
-    <p class="hint">Tapping the map marks a spot and shows its range and bearing. Click-to-go (driving there) arrives in the next drop.</p>
+
+    <!-- Intel RealSense D435 2D Camera Panel -->
+    <div class="panel cameraPanel">
+      <div class="panel-header-row" style="margin-bottom:8px;">
+        <h2>📷 RealSense D435 (2D Feed)</h2>
+        <div class="cam-header-actions">
+          <button id="btnCamToggle" class="btn-cam-toggle on" title="Toggle RealSense Camera Feed">Turn Off</button>
+          <span id="camStateBadge" class="chip cam-badge active">Streaming</span>
+        </div>
+      </div>
+
+      <div class="camera-viewport-wrap" id="cameraViewportWrap">
+        <img id="camStreamImg" class="camera-stream-img" src="/api/camera/stream" alt="RealSense D435 Stream" />
+        <div id="camPlaceholder" class="camera-placeholder" style="display:none;">
+          <div class="cam-placeholder-icon">📷</div>
+          <div class="cam-placeholder-title">Camera Feed Off</div>
+          <p class="cam-placeholder-text">Camera stream is paused to conserve USB bandwidth and CPU load.</p>
+          <button id="btnCamStartPlaceholder" class="btn-quick-en">▶ Turn On Feed</button>
+        </div>
+      </div>
+
+      <div class="readout wide" style="margin-top:10px;">
+        <div><small>source</small><b id="camSource">RealSense D435</b></div>
+        <div><small>fps</small><b id="camFps">0.0</b></div>
+        <div><small>resolution</small><b id="camRes">640x480</b></div>
+        <div><small>status</small><b id="camStatusChip" class="chip">online</b></div>
+      </div>
+      <p class="hint">Direct USB 2D color feed from Intel RealSense D435. Toggle off anytime to conserve USB bandwidth and CPU power.</p>
+    </div>
   </div>
 </section>
 

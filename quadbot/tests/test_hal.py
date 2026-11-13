@@ -128,3 +128,18 @@ def test_rplidar_driver_config_and_mask():
     assert scan[20] == 500.0
     assert age < 1.0
 
+
+def test_rplidar_inverted_mount_offset_180():
+    from quadbot.lidar import make_lidar, RPLidarDriver
+    import yaml
+
+    with open("config/robot.yaml") as f:
+        cfg = yaml.safe_load(f)
+
+    # Inverted 180 mounting check
+    assert cfg["lidar"]["mount_offset_deg"] == 180
+    d = make_lidar(cfg)
+    assert isinstance(d, RPLidarDriver)
+    assert d.offset == 180
+
+

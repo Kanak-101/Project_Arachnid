@@ -236,9 +236,133 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 addEventListener('blur', () => keys.clear());
 
-// Gamepad Controller Integration
+// Gamepad Controller Integration & Layouts
 let prevBtn = [];
+let prevDpad = { up: false, down: false, left: false, right: false };
 let activeGamepadIndex = null;
+let currentPadLayout = localStorage.getItem('quadbot_pad_layout') || 'ps_cachyos';
+
+const PAD_LAYOUTS = {
+  ps_cachyos: {
+    name: 'PlayStation (CachyOS / Linux)',
+    clusterTitle: 'PlayStation Buttons',
+    btnA: { sym: '✕', name: 'Wave 👋' },
+    btnB: { sym: '◯', name: 'Trot 🐕' },
+    btnX: { sym: '▢', name: 'Pushup 💪' },
+    btnY: { sym: '△', name: 'Mode 🔄' },
+    lb: { sym: 'L1', name: 'Wiggle' },
+    rb: { sym: 'R1', name: 'Dance' },
+    select: { sym: 'Share', name: 'Stop' },
+    start: { sym: 'Opt', name: 'Arm' },
+    dpad: {
+      up: 'Stand 🚶',
+      down: 'Sit / Rest 🧎',
+      left: 'Crab Dance 🦀',
+      right: 'Bow 🙇'
+    }
+  },
+  xbox_standard: {
+    name: 'Xbox / Standard (Windows & Linux)',
+    clusterTitle: 'Xbox Buttons',
+    btnA: { sym: 'A', name: 'Wave 👋' },
+    btnB: { sym: 'B', name: 'Trot 🐕' },
+    btnX: { sym: 'X', name: 'Pushup 💪' },
+    btnY: { sym: 'Y', name: 'Mode 🔄' },
+    lb: { sym: 'LB', name: 'Wiggle' },
+    rb: { sym: 'RB', name: 'Dance' },
+    select: { sym: 'Back', name: 'Stop' },
+    start: { sym: 'Start', name: 'Arm' },
+    dpad: {
+      up: 'Stand 🚶',
+      down: 'Sit / Rest 🧎',
+      left: 'Crab Dance 🦀',
+      right: 'Bow 🙇'
+    }
+  },
+  legacy: {
+    name: 'Legacy Default',
+    clusterTitle: 'Face Buttons',
+    btnA: { sym: 'A', name: 'Stand 🚶' },
+    btnB: { sym: 'B', name: 'Rest 🧎' },
+    btnX: { sym: 'X', name: 'Wave 👋' },
+    btnY: { sym: 'Y', name: 'Mode 🔄' },
+    lb: { sym: 'LB', name: 'Push-up' },
+    rb: { sym: 'RB', name: 'Wiggle' },
+    select: { sym: 'Select', name: 'Stop' },
+    start: { sym: 'Start', name: 'Arm' },
+    dpad: {
+      up: 'Forward ▲',
+      down: 'Backward ▼',
+      left: 'Turn Left ↺',
+      right: 'Turn Right ↻'
+    }
+  }
+};
+
+function applyGamepadLayoutUI() {
+  const cfg = PAD_LAYOUTS[currentPadLayout] || PAD_LAYOUTS.ps_cachyos;
+  const sel = $('#padLayoutSelect');
+  if (sel && sel.value !== currentPadLayout) {
+    sel.value = currentPadLayout;
+  }
+  const clusterLbl = $('#lblFaceCluster');
+  if (clusterLbl) clusterLbl.textContent = cfg.clusterTitle;
+
+  const btnA = $('#btnPadA');
+  if (btnA) {
+    const bEl = btnA.querySelector('b');
+    const sEl = btnA.querySelector('span');
+    if (bEl) bEl.textContent = cfg.btnA.sym;
+    if (sEl) sEl.textContent = cfg.btnA.name;
+  }
+  const btnB = $('#btnPadB');
+  if (btnB) {
+    const bEl = btnB.querySelector('b');
+    const sEl = btnB.querySelector('span');
+    if (bEl) bEl.textContent = cfg.btnB.sym;
+    if (sEl) sEl.textContent = cfg.btnB.name;
+  }
+  const btnX = $('#btnPadX');
+  if (btnX) {
+    const bEl = btnX.querySelector('b');
+    const sEl = btnX.querySelector('span');
+    if (bEl) bEl.textContent = cfg.btnX.sym;
+    if (sEl) sEl.textContent = cfg.btnX.name;
+  }
+  const btnY = $('#btnPadY');
+  if (btnY) {
+    const bEl = btnY.querySelector('b');
+    const sEl = btnY.querySelector('span');
+    if (bEl) bEl.textContent = cfg.btnY.sym;
+    if (sEl) sEl.textContent = cfg.btnY.name;
+  }
+
+  const dUp = $('#btnPadDUp span');
+  if (dUp) dUp.textContent = cfg.dpad.up;
+  const dDown = $('#btnPadDDown span');
+  if (dDown) dDown.textContent = cfg.dpad.down;
+  const dLeft = $('#btnPadDLeft span');
+  if (dLeft) dLeft.textContent = cfg.dpad.left;
+  const dRight = $('#btnPadDRight span');
+  if (dRight) dRight.textContent = cfg.dpad.right;
+
+  const lblLB = $('#lblBtnLB');
+  if (lblLB) lblLB.textContent = cfg.lb.sym;
+  const lblRB = $('#lblBtnRB');
+  if (lblRB) lblRB.textContent = cfg.rb.sym;
+  const lblStart = $('#lblBtnStart');
+  if (lblStart) lblStart.textContent = cfg.start.sym;
+  const lblSelect = $('#lblBtnSelect');
+  if (lblSelect) lblSelect.textContent = cfg.select.sym;
+}
+
+// Bind layout selector change handler
+$('#padLayoutSelect')?.addEventListener('change', (e) => {
+  currentPadLayout = e.target.value;
+  localStorage.setItem('quadbot_pad_layout', currentPadLayout);
+  applyGamepadLayoutUI();
+});
+setTimeout(applyGamepadLayoutUI, 50);
 
 window.addEventListener('gamepadconnected', (e) => {
   activeGamepadIndex = e.gamepad.index;
@@ -252,7 +376,23 @@ window.addEventListener('gamepaddisconnected', (e) => {
   }
 });
 
-function updateGamepadUI(pad, vx, vy, wz, b, rawAx) {
+function getDpadState(pad, b) {
+  let up = !!b[12], down = !!b[13], left = !!b[14], right = !!b[15];
+  // Cross-platform fallback for non-standard hat axes on Linux / CachyOS (axes 4..9)
+  if (pad.axes && pad.axes.length >= 6) {
+    for (let ax = 4; ax < pad.axes.length - 1; ax += 2) {
+      const hx = pad.axes[ax];
+      const hy = pad.axes[ax + 1];
+      if (hy < -0.5) up = true;
+      if (hy > 0.5) down = true;
+      if (hx < -0.5) left = true;
+      if (hx > 0.5) right = true;
+    }
+  }
+  return { up, down, left, right };
+}
+
+function updateGamepadUI(pad, vx, vy, wz, b, rawAx, curDpad) {
   const gpSection = $('#gamepadSection');
   const gpStatus = $('#gamepadStatus');
   const gpDetails = $('#gamepadDetails');
@@ -302,6 +442,20 @@ function updateGamepadUI(pad, vx, vy, wz, b, rawAx) {
     const el = $(sel);
     if (el) el.classList.toggle('active', !!b[+idx]);
   }
+
+  // D-Pad visual indicators
+  if (curDpad) {
+    const dpadElMap = {
+      up: '#btnPadDUp',
+      down: '#btnPadDDown',
+      left: '#btnPadDLeft',
+      right: '#btnPadDRight'
+    };
+    for (const [dir, sel] of Object.entries(dpadElMap)) {
+      const el = $(sel);
+      if (el) el.classList.toggle('active', !!curDpad[dir]);
+    }
+  }
 }
 
 function readPad() {
@@ -315,8 +469,9 @@ function readPad() {
   }
 
   if (!pad) {
-    updateGamepadUI(null, 0, 0, 0, [], () => 0);
+    updateGamepadUI(null, 0, 0, 0, [], () => 0, null);
     prevBtn = [];
+    prevDpad = { up: false, down: false, left: false, right: false };
     return null;
   }
 
@@ -334,6 +489,10 @@ function readPad() {
   const b = pad.buttons.map((x) => (typeof x === 'object' ? x.pressed : !!x));
   const edge = (i) => b[i] && !prevBtn[i];
 
+  // D-Pad readings with cross-platform hat axis fallback
+  const curDpad = getDpadState(pad, b);
+  const edgeDpad = (dir) => curDpad[dir] && !prevDpad[dir];
+
   // Helper to switch modes safely with auto-arm and servo-enable
   const setModeFromPad = (targetMode, label) => {
     if (!st || !st.armed) send({ t: 'arm', on: true });
@@ -350,47 +509,77 @@ function readPad() {
     showNotice(`🎮 Gamepad: ${label}`);
   };
 
-  // --- Button 3 (Y / Triangle): Mode Cycle Button ---
-  // Cycles smoothly: Stand -> Trot -> Crawl -> Pace -> Dance -> Rest -> Stand
-  const MODES_CYCLE = ['stand', 'trot', 'crawl', 'pace', 'dance', 'rest'];
-  if (edge(3)) {
-    const curMode = st?.mode || 'stand';
-    const curIdx = MODES_CYCLE.indexOf(curMode);
-    const nextMode = MODES_CYCLE[(curIdx + 1) % MODES_CYCLE.length];
-    setModeFromPad(nextMode, `Mode: ${nextMode.toUpperCase()} 🔄`);
-  }
+  const isLegacy = currentPadLayout === 'legacy';
 
-  // --- Button 0 (A / Cross): Stand Pose (Neutral stance) ---
-  if (edge(0)) {
-    setModeFromPad('stand', 'Stand Pose 🚶');
-  }
+  if (!isLegacy) {
+    // ================= Modern Mappings (PS / CachyOS & Xbox) =================
+    // D-Pad Down: Sit (Rest mode)
+    if (edgeDpad('down')) {
+      setModeFromPad('rest', 'Sit Down (Rest) 🧎');
+    }
+    // D-Pad Up: Stand (Stand pose)
+    if (edgeDpad('up')) {
+      setModeFromPad('stand', 'Stand Pose 🚶');
+    }
+    // D-Pad Left: Crab Dance
+    if (edgeDpad('left')) {
+      triggerActionFromPad('crab', 'Crab Dance 🦀');
+    }
+    // D-Pad Right: Bow
+    if (edgeDpad('right')) {
+      triggerActionFromPad('bow', 'Bow Pose 🙇');
+    }
 
-  // --- Button 1 (B / Circle): Rest Pose (Sit Down) ---
-  if (edge(1)) {
-    setModeFromPad('rest', 'Rest (Sit Down) 🧎');
-  }
-
-  // --- Button 2 (X / Square): High Paw Wave ---
-  if (edge(2)) {
-    triggerActionFromPad('wave', 'High Paw Wave 👋');
+    // Button 0 (A / Cross): High Paw Wave
+    if (edge(0)) {
+      triggerActionFromPad('wave', 'High Paw Wave 👋');
+    }
+    // Button 1 (B / Circle): Trot Gait
+    if (edge(1)) {
+      setModeFromPad('trot', 'Trot Gait 🐕');
+    }
+    // Button 2 (X / Square): Push-ups
+    if (edge(2)) {
+      triggerActionFromPad('pushup', 'Push-ups 💪');
+    }
+    // Button 3 (Y / Triangle): Mode Cycle
+    const MODES_CYCLE = ['stand', 'trot', 'crawl', 'pace', 'dance', 'rest'];
+    if (edge(3)) {
+      const curMode = st?.mode || 'stand';
+      const curIdx = MODES_CYCLE.indexOf(curMode);
+      const nextMode = MODES_CYCLE[(curIdx + 1) % MODES_CYCLE.length];
+      setModeFromPad(nextMode, `Mode: ${nextMode.toUpperCase()} 🔄`);
+    }
+  } else {
+    // ================= Legacy Mappings =================
+    if (edge(0)) setModeFromPad('stand', 'Stand Pose 🚶');
+    if (edge(1)) setModeFromPad('rest', 'Rest (Sit Down) 🧎');
+    if (edge(2)) triggerActionFromPad('wave', 'High Paw Wave 👋');
+    const MODES_CYCLE = ['stand', 'trot', 'crawl', 'pace', 'dance', 'rest'];
+    if (edge(3)) {
+      const curMode = st?.mode || 'stand';
+      const curIdx = MODES_CYCLE.indexOf(curMode);
+      const nextMode = MODES_CYCLE[(curIdx + 1) % MODES_CYCLE.length];
+      setModeFromPad(nextMode, `Mode: ${nextMode.toUpperCase()} 🔄`);
+    }
   }
 
   // --- Bumpers: Expressive Quick Actions ---
-  // Button 4 (LB): Athletic Push-ups
+  // Button 4 (LB / L1): Playful Butt Wiggle
   if (edge(4)) {
-    triggerActionFromPad('pushup', 'Push-ups 💪');
-  }
-  // Button 5 (RB): Playful Butt Wiggle
-  if (edge(5)) {
     triggerActionFromPad('wiggle', 'Butt Wiggle 🐕');
+  }
+  // Button 5 (RB / R1): Dance
+  if (edge(5)) {
+    triggerActionFromPad('dance', 'Dance 💃');
   }
 
   // --- Triggers ---
-  // Button 6 (LT): Crab Dance (Side-to-Side Dip)
+  // Button 6 (LT / L2): Stretch
   if (edge(6)) {
-    triggerActionFromPad('crab', 'Crab Dance 🦀');
+    triggerActionFromPad('stretch', 'Stretch 🧘');
   }
-  // Button 7 (RT): Curious Peek
+  // Button 7 (RT / R2): Curious Peek
   if (edge(7)) {
     triggerActionFromPad('peek', 'Curious Peek 👀');
   }
@@ -407,14 +596,14 @@ function readPad() {
   }
 
   // --- System Buttons ---
-  // Button 9 (Start): Toggle Arm / Disarm Servos
+  // Button 9 (Start / Options): Toggle Arm / Disarm Servos
   if (edge(9)) {
     const willArm = !(st && st.armed);
     send({ t: 'arm', on: willArm });
     if (willArm) send({ t: 'servo_enable_all', on: true });
     showNotice(willArm ? '🎮 Gamepad: Servos Armed' : '🎮 Gamepad: Servos Released');
   }
-  // Button 8 (Select / Back): Stop Motion or Reset E-Stop
+  // Button 8 (Select / Share / Back): Stop Motion or Reset E-Stop
   if (edge(8)) {
     if (st && st.estop) {
       send({ t: 'reset_estop' });
@@ -426,26 +615,26 @@ function readPad() {
   }
 
   // --- Left Stick: Forward / Backward (Axis 1) and Strafe Left / Right (Axis 0) ---
-  // Stick UP is -1.0 -> -(-1.0) = +1.0 (Forward), Stick DOWN is +1.0 -> -(+1.0) = -1.0 (Backward)
   let vx = -ax(1);
-  // Stick LEFT is -1.0 -> -(-1.0) = +1.0 (Strafe Left), Stick RIGHT is +1.0 -> -(+1.0) = -1.0 (Strafe Right)
   let vy = -ax(0);
 
   // --- Right Stick: Yaw Turn (Axis 2, with fallback to Axis 3 if non-standard) ---
   const turnAxis = pad.axes.length > 2 ? 2 : 0;
-  // Stick LEFT is -1.0 -> -(-1.0) = +1.0 (Turn Left / CCW), Stick RIGHT is +1.0 -> -(+1.0) = -1.0 (Turn Right / CW)
   let wz = -ax(turnAxis);
 
-  // --- D-Pad Directional Controls (Buttons 12..15) ---
-  if (b[12]) vx = 0.65;   // D-pad Up: Forward
-  if (b[13]) vx = -0.65;  // D-pad Down: Backward
-  if (b[14]) wz = 0.8;    // D-pad Left: Turn Left
-  if (b[15]) wz = -0.8;   // D-pad Right: Turn Right
+  // In Legacy mode only, D-Pad drives locomotion:
+  if (isLegacy) {
+    if (curDpad.up) vx = 0.65;
+    if (curDpad.down) vx = -0.65;
+    if (curDpad.left) wz = 0.8;
+    if (curDpad.right) wz = -0.8;
+  }
 
   prevBtn = b;
+  prevDpad = curDpad;
 
   // Update live visual dashboard indicators
-  updateGamepadUI(pad, vx, vy, wz, b, rawAx);
+  updateGamepadUI(pad, vx, vy, wz, b, rawAx, curDpad);
 
   return { vx, vy, wz };
 }
@@ -698,6 +887,94 @@ $('#radar').addEventListener('click', (e) => {
   drawRadar();
 });
 
+/* ------------------------------------------------------------------ camera & vision */
+let camPollTimer = null;
+
+async function fetchCameraStatus() {
+  try {
+    const res = await fetch('/api/camera/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    updateCameraUI(data);
+  } catch (_) {}
+}
+
+function updateCameraUI(camSt) {
+  if (!camSt) return;
+  const btnToggle = $('#btnCamToggle');
+  const badge = $('#camStateBadge');
+  const streamImg = $('#camStreamImg');
+  const placeholder = $('#camPlaceholder');
+  const srcEl = $('#camSource');
+  const fpsEl = $('#camFps');
+  const resEl = $('#camRes');
+  const chipEl = $('#camStatusChip');
+
+  const isEnabled = !!camSt.enabled;
+  if (btnToggle) {
+    btnToggle.textContent = isEnabled ? 'Turn Off' : 'Turn On';
+    btnToggle.classList.toggle('on', isEnabled);
+    btnToggle.classList.toggle('off', !isEnabled);
+  }
+  if (badge) {
+    badge.textContent = isEnabled ? (camSt.active ? 'Streaming' : 'Standby') : 'Off';
+    badge.className = `chip cam-badge ${isEnabled ? 'active' : 'inactive'}`;
+  }
+  if (streamImg && placeholder) {
+    if (isEnabled) {
+      placeholder.style.display = 'none';
+      streamImg.style.display = 'block';
+      if (!streamImg.src || streamImg.src.includes('about:blank') || streamImg.dataset.paused === 'true') {
+        streamImg.src = '/api/camera/stream?t=' + Date.now();
+        streamImg.dataset.paused = 'false';
+      }
+    } else {
+      streamImg.style.display = 'none';
+      streamImg.dataset.paused = 'true';
+      streamImg.src = '';
+      placeholder.style.display = 'flex';
+    }
+  }
+  if (srcEl) {
+    if (!isEnabled) {
+      srcEl.textContent = 'Disabled';
+    } else if (camSt.source.startsWith('realsense:')) {
+      srcEl.textContent = camSt.source.replace('realsense:', '');
+    } else if (camSt.source.startsWith('v4l2:')) {
+      srcEl.textContent = `V4L2 (${camSt.source.replace('v4l2:', '')})`;
+    } else {
+      srcEl.textContent = camSt.source || 'Standby';
+    }
+  }
+  if (fpsEl) fpsEl.textContent = (camSt.fps != null ? camSt.fps : 0).toFixed(1);
+  if (resEl && camSt.resolution) resEl.textContent = `${camSt.resolution[0]}x${camSt.resolution[1]}`;
+  if (chipEl) {
+    chipEl.textContent = isEnabled ? (camSt.active ? 'online' : 'standby') : 'disabled';
+    chipEl.className = `chip ${isEnabled ? (camSt.active ? 'connected' : 'calib') : ''}`;
+  }
+}
+
+async function toggleCamera(forceState) {
+  try {
+    const res = await fetch('/api/camera/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(forceState !== undefined ? { enabled: forceState } : {})
+    });
+    const data = await res.json();
+    if (data.status) {
+      updateCameraUI(data.status);
+    } else {
+      fetchCameraStatus();
+    }
+  } catch (err) {
+    showNotice(`Camera error: ${err.message}`, true);
+  }
+}
+
+$('#btnCamToggle')?.addEventListener('click', () => toggleCamera());
+$('#btnCamStartPlaceholder')?.addEventListener('click', () => toggleCamera(true));
+
 /* ------------------------------------------------------------------ chrome */
 $('#arm').addEventListener('click', () => {
   const willArm = !(st && st.armed);
@@ -720,7 +997,13 @@ $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
   $$('.tab').forEach((s) => { s.hidden = s.id !== 'tab-' + tab; });
   if (tab === 'calib') { if (st && st.mode !== 'calib') send({ t: 'mode', mode: 'calib' }); drawChassis(); }
-  if (tab === 'radar') drawRadar();
+  if (tab === 'radar') {
+    drawRadar();
+    fetchCameraStatus();
+    if (!camPollTimer) camPollTimer = setInterval(fetchCameraStatus, 2500);
+  } else {
+    if (camPollTimer) { clearInterval(camPollTimer); camPollTimer = null; }
+  }
   if (tab === 'legs') { buildLegSliders(); updateLegReadout(); }
 }));
 // once an e-stop is latched the button becomes the reset control

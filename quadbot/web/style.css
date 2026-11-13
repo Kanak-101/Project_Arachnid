@@ -280,6 +280,175 @@ input[type=number] { width: 84px; min-height: 36px; padding: 0 6px; border: 1.5p
   color: #e2e8f0;
 }
 
+/* ---------- gamepad header & d-pad additions ---------- */
+.gamepad-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pad-layout-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink2);
+}
+.pad-layout-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pad-layout-select:focus {
+  border-color: var(--steel);
+  outline: none;
+}
+.pad-dpad-cluster {
+  min-width: 170px;
+}
+.dpad-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+}
+.pad-dpad-item {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76rem;
+  user-select: none;
+  transition: all 0.08s ease;
+  text-align: center;
+}
+.pad-dpad-item b {
+  font-size: 0.84rem;
+  line-height: 1.2;
+}
+.pad-dpad-item span {
+  font-size: 0.68rem;
+  color: var(--ink2);
+  margin-top: 2px;
+}
+.pad-dpad-item.active {
+  background: var(--steel);
+  color: #fff;
+  border-color: var(--steel-d);
+  transform: scale(0.96);
+}
+.pad-dpad-item.active span {
+  color: #cfe0e8;
+}
+
+/* ---------- vision & camera layout ---------- */
+.vision-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.cameraPanel {
+  background: var(--panel);
+}
+.cam-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-cam-toggle {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.15s ease;
+}
+.btn-cam-toggle.on {
+  background: #fff0f0;
+  color: var(--stop);
+  border-color: #f5c6cb;
+}
+.btn-cam-toggle.on:hover {
+  background: var(--stop);
+  color: #fff;
+}
+.btn-cam-toggle.off {
+  background: #e6f4ea;
+  color: #137333;
+  border-color: #a8dab5;
+}
+.btn-cam-toggle.off:hover {
+  background: #137333;
+  color: #fff;
+}
+.cam-badge.active {
+  background: #d4edda;
+  color: #155724;
+  border-color: #28a745;
+}
+.cam-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+  border-color: #f5c6cb;
+}
+
+.camera-viewport-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 480px;
+  background: #0f1c24;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+}
+.camera-stream-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.camera-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: #94a3b8;
+}
+.cam-placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 8px;
+}
+.cam-placeholder-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 6px;
+}
+.cam-placeholder-text {
+  font-size: 0.82rem;
+  max-width: 260px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  color: #94a3b8;
+}
+
+
 
 
 
